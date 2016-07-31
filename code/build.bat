@@ -12,6 +12,6 @@ REM 64-bit dll
 cl %CompilerFlags% -DAGL_EXPORT ..\code\win32_agl.cpp /LD /link %LinkerFlags%
 
 REM 64-bit build
-cl -I..\code\imgui %CompilerFlags% ..\code\game.cpp /link %LinkerFlags% win32_agl.lib
+cl %CompilerFlags% ..\code\game.cpp /link %LinkerFlags% win32_agl.lib
 
 popd
