@@ -37,8 +37,9 @@ aglInitGLDefault(void)
 	glClearColor(0.0f, 0.0f, 0.0f, 0.5f);				// Black Background
 	glClearDepth(1.0f);									// Depth Buffer Setup
 	glEnable(GL_DEPTH_TEST);							// Enables Depth Testing
-	glDepthFunc(GL_LEQUAL);								// The Type Of Depth Testing To Do
-	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations  
+	glDepthFunc(GL_LESS);								// The Type Of Depth Testing To Do
+//    glEnable(GL_CULL_FACE);
+	//glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations  
 };
 
 GLboolean
@@ -76,6 +77,10 @@ aglLoadOpenGLAPI(void)
         glEnableVertexAttribArray          = (PFNGLENABLEVERTEXATTRIBARRAYPROC)  aglGetProcAddress("glEnableVertexAttribArray");
         glVertexAttribPointer              = (PFNGLVERTEXATTRIBPOINTERPROC)      aglGetProcAddress("glVertexAttribPointer");
         glDisableVertexAttribArray         = (PFNGLDISABLEVERTEXATTRIBARRAYPROC) aglGetProcAddress("glDisableVertexAttribArray");
+
+        glVertexAttribDivisor              = (PFNGLVERTEXATTRIBDIVISORPROC)      aglGetProcAddress("glVertexAttribDivisor");
+        glDrawArraysInstanced              = (PFNGLDRAWARRAYSINSTANCEDPROC)      aglGetProcAddress("glDrawArraysInstanced");
+        
         return GL_TRUE;
     }
     return GL_FALSE;
@@ -161,7 +166,7 @@ aglCompileShader(const char *Source, GLenum Type)
             int Length = 0;
             char Info[4096];
             glGetShaderInfoLog(Result, 4096, &Length, Info);
-            printf("%s", Info);
+            printf("Shader compile error:\n%s", Info);
         }
     }
     return Result;
@@ -238,4 +243,10 @@ GLuint
 aglGetCurrentFPS(void)
 {
     return 1000 / aglPlatformGetMilliSeconds();
+}
+
+GLboolean
+aglKeyDown(char Key)
+{
+    return aglPlatformKeyDown(Key);
 }

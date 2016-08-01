@@ -4,11 +4,15 @@ HGLRC hRC;
 win32_context Context;
 GLboolean Running;
 
+agl_keyboad_input KeybInput = {};
+
 LARGE_INTEGER PerformanceFrequency;
 LARGE_INTEGER BeginFrame, EndFrame;
 GLfloat FixedFrameRateMicro;
 GLfloat CurrentFrameRateMicro;
 #define TIMER_RESOLUTION 1
+
+int FrameCount = 0;
 
 win32_context *
 aglGetWin32Context(void)
@@ -17,7 +21,7 @@ aglGetWin32Context(void)
 }
 
 void *
-Win32GetProcAddress(char *procname)
+aglPlatformGetProcAddress(char *procname)
 {
     void *ptr = 0;
     if (!(ptr = wglGetProcAddress(procname)))
@@ -63,18 +67,6 @@ ToggleFullscreen()
 GLboolean
 aglPlatformContextAlive(void)
 {
-    POINT MouseCoords;
-    RECT WindowRect;
-    GetWindowRect(Context.Hwnd, &WindowRect);
-    GetCursorPos(&MouseCoords);
-    if(!(MouseCoords.x > WindowRect.left && MouseCoords.x < WindowRect.right &&
-         MouseCoords.y > WindowRect.top && MouseCoords.y < WindowRect.bottom))
-    {
-        aglMouseInput.Left = GL_FALSE;
-        aglMouseInput.Middle = GL_FALSE;
-        aglMouseInput.Right = GL_FALSE;
-    }
-    
     MSG msg;
     while(PeekMessage(&msg,NULL,0,0,PM_REMOVE))
     {
@@ -88,13 +80,26 @@ void
 aglPlatformFixedFrameRate(GLuint FramesPerSecond)
 {
     FixedFrameRateMicro = 1.0f / FramesPerSecond;
-    timeBeginPeriod(TIMER_RESOLUTION);
+    if (!(timeBeginPeriod(TIMER_RESOLUTION) == TIMERR_NOERROR)) printf("FUCK THAT WIN32 TIMER SHIT");
 }
 
 void
 aglPlatformBeginFrame(void)
 {
-    QueryPerformanceCounter(&BeginFrame);    
+    QueryPerformanceCounter(&BeginFrame);
+    FrameCount++;
+
+    POINT MouseCoords;
+    RECT WindowRect;
+    GetWindowRect(Context.Hwnd, &WindowRect);
+    GetCursorPos(&MouseCoords);
+    if(!(MouseCoords.x > WindowRect.left && MouseCoords.x < WindowRect.right &&
+         MouseCoords.y > WindowRect.top && MouseCoords.y < WindowRect.bottom))
+    {
+        aglMouseInput.Left = GL_FALSE;
+        aglMouseInput.Middle = GL_FALSE;
+        aglMouseInput.Right = GL_FALSE;
+    }
 }
 
 void
@@ -114,6 +119,9 @@ aglPlatformEndFrame(void)
             CurrentFrameRateMicro = FixedFrameRateMicro;
         }
     }
+
+    aglMouseInput.dX = 0;
+    aglMouseInput.dY = 0;
 }
 
 GLfloat
@@ -125,15 +133,7 @@ aglPlatformGetMilliSeconds(void)
 void
 aglPlatformUpdateContext()
 {
-    if(Context.DC)
-    {
-        if(!SwapBuffers(Context.DC))
-        {
-            printf("Swap buffer failed\n");
-        }
-    }
-    aglMouseInput.dX = 0;
-    aglMouseInput.dY = 0;
+    SwapBuffers(Context.DC);
 }
 
 GLboolean
@@ -141,7 +141,8 @@ aglPlatformDestroyContext(void)
 {
     GLboolean Result = GL_TRUE;
     timeEndPeriod(TIMER_RESOLUTION);
-    
+
+    printf("Frames drawn: %i\n", FrameCount); 
             
     //    ToggleFullscreen();
 	if (hRC)											// Do We Have A Rendering Context?
@@ -197,7 +198,7 @@ aglPlatformCreateContext(char* title, int width, int height)
 {
     QueryPerformanceFrequency(&PerformanceFrequency);
     
-    aglAssignGetProcAddress(Win32GetProcAddress);
+    //aglAssignGetProcAddress(Win32GetProcAddress);
     
 	GLuint		PixelFormat;			// Holds The Results After Searching For A Match
 	WNDCLASS	wc;						// Windows Class Structure
@@ -342,18 +343,31 @@ aglPlatformCreateContext(char* title, int width, int height)
     }
 #endif
 
-    /*
+    
+#if 1
 	ShowWindow(Context.Hwnd, SW_SHOW);						// Show The Window
 	SetForegroundWindow(Context.Hwnd);						// Slightly Higher Priority
     SetFocus(Context.Hwnd);									// Sets Keyboard Focus To The Window
-    */
+#endif
     //MessageBoxA(0,(char*)glGetString(GL_SHADING_LANGUAGE_VERSION), "OPENGL VERSION",0);
     return &hRC;
 }
 
+GLboolean
+aglPlatformKeyDown(GLchar Key)
+{
+    return KeybInput.Keys[Key];
+}
+
+void
+aglPlatformSetTitle(char *Title)
+{
+    SetWindowText(Context.Hwnd, Title);
+}
+
+#define sign(a) ( ( (a) < 0 )  ?  -1   : ( (a) > 0 ) )
 #define GET_X_LPARAM(lp)                        ((int)(short)LOWORD(lp))
 #define GET_Y_LPARAM(lp)                        ((int)(short)HIWORD(lp))
-
 void
 win32UpdateMouseCoords(LPARAM lParam)
 {
@@ -365,7 +379,6 @@ win32UpdateMouseCoords(LPARAM lParam)
     aglMouseInput.Y = Y;
 }
 
-#define sign(a) ( ( (a) < 0 )  ?  -1   : ( (a) > 0 ) )
 LRESULT CALLBACK
 WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -442,13 +455,15 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		} return 0;
 		case WM_KEYDOWN:							// Is A Key Being Held Down?
 		{
-            if(aglKeyDown) aglKeyDown(wParam);
+            KeybInput.Keys[wParam] = 1;
+            //if(aglKeyDown) aglKeyDown(wParam);
 			return 0;								// Jump Back            
 		}
 
 		case WM_KEYUP:								// Has A Key Been Released?
 		{
-            if(aglKeyUp) aglKeyUp(wParam);
+            KeybInput.Keys[wParam] = 0;
+//            if(aglKeyUp) aglKeyUp(wParam);
 			return 0;								// Jump Back
 		}
 		case WM_SIZE:								// Resize The OpenGL Window
@@ -469,6 +484,7 @@ BOOLEAN WINAPI DllMain(HINSTANCE hDllHandle, DWORD nReason, LPVOID Reserved )
         case DLL_PROCESS_ATTACH:
         {
             Context.Instance = hDllHandle;
+            aglAssignGetProcAddress(aglPlatformGetProcAddress);
         } break;
         case DLL_PROCESS_DETACH:
             break;

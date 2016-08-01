@@ -1,4 +1,3 @@
-
 #if 1
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -60,26 +59,59 @@ ParseWavefrontOBJ(FILE *File, char *Directory, void *MemoryArena)
             char MaterialFullPath[4096];
             
             sprintf(MaterialFullPath, "%s%s", Directory, MatrialLibName);
-            FILE *MatrialFile = fopen(MaterialFullPath, "r");
-            if(MatrialFile)
+            FILE *MaterialFile = fopen(MaterialFullPath, "r");
+            if(MaterialFile)
             {
                 for(;;)
                 {
                     char LineBuffer[128];
-                    if(fscanf(MatrialFile, "%s", LineBuffer) == EOF) break;
+                    if(fscanf(MaterialFile, "%s", LineBuffer) == EOF) break;
                     else if(strcmp(LineBuffer, "newmtl") == 0)
                     {
                         char MaterialName[4096] = {};
-                        fscanf(MatrialFile, "%s", MaterialName);
+                        fscanf(MaterialFile, "%s", MaterialName);
                         memcpy(Result->Materials[Result->MaterialCount].Name, MaterialName, strlen(MaterialName));
                         Result->MaterialCount++;
                     }
+                    else if(strcmp(LineBuffer, "Ka") == 0)
+                    {
+                        v3 Ambient = {};
+                        if(fscanf(MaterialFile, "%f %f %f", &Ambient.r, &Ambient.g, &Ambient.b) == 3)
+                        {
+                            Result->Materials[Result->MaterialCount-1].Ambient = Ambient;
+                        }
+                    }
+                    else if(strcmp(LineBuffer, "Kd") == 0)
+                    {
+                        v3 Diffuse = {};
+                        if(fscanf(MaterialFile, "%f %f %f", &Diffuse.r, &Diffuse.g, &Diffuse.b) == 3)
+                        {
+                            Result->Materials[Result->MaterialCount-1].Diffuse = Diffuse;
+                        }                        
+                    }
+                    else if(strcmp(LineBuffer, "Ks") == 0)
+                    {
+                        v3 Specular = {};
+                        if(fscanf(MaterialFile, "%f %f %f", &Specular.r, &Specular.g, &Specular.b) == 3)
+                        {
+                            Result->Materials[Result->MaterialCount-1].Specular = Specular;
+                        }                                                
+                    }
+                    else if(strcmp(LineBuffer, "Ns") == 0)
+                    {
+                        uint32 SpecExp;
+                        if(fscanf(MaterialFile, "%u", &SpecExp) == 1)
+                        {
+                            Result->Materials[Result->MaterialCount-1].SpecExp = SpecExp;
+                        }
+                    }
+                    
                     else if(strcmp(LineBuffer, "map_Kd") == 0)
                     {
                         char TextureFullPath[4096] = {};
                         char TextureFile[4096] = {};
                         
-                        fscanf(MatrialFile, "%s", TextureFile);
+                        fscanf(MaterialFile, "%s", TextureFile);
                         if(strcmp(TextureFile, ".") == 0)
                         {
                             sprintf(TextureFullPath, "%sdefault.tga", Directory);

@@ -15,8 +15,6 @@ LoadModel(char *Filename, ModelDataRawType Type, void *MemoryArena)
     QueryPerformanceFrequency(&PerfFreq);
     QueryPerformanceCounter(&LoadModelBegin);
 
-
-
     char Directory[4096] = {};
     for(int i=strlen(Filename); i >= 0; i--)
     {
@@ -68,7 +66,7 @@ aglCreateRenderTarget(void *MemoryArena, char *Filename,
         Result.Scale = Scale;
         Result.RotVector = RotVector;
         Result.Rotation = Rotation;
-        Result.Locked = Locked;
+        Result.glRenderType = GL_TRIANGLES;
     }
     return Result;
 }
@@ -114,35 +112,15 @@ aglDeleteRenderTarget(render_object *Target)
 }
 
 void
-aglBindRenderTarget(render_object *Target)
-{
-    if(Target->Model->VBO[0])
-    {
-        glEnableVertexAttribArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, Target->Model->VBO[0]);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(*Target->Model->Vertices), 0);
-    }
-    
-    if(Target->Model->VBO[1])
-    {
-        glEnableVertexAttribArray(1);
-        glBindBuffer(GL_ARRAY_BUFFER, Target->Model->VBO[1]);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(*Target->Model->UVs), 0); 
-    }
-}
-
-void
 aglDrawRenderTarget(render_object *Target)
 {
     if(Target->Model)
     {
-
         model_data *Model = Target->Model;
         for (int i=0; i<3; i++)
         {
             if(Model->VBO[i] > 0) glEnableVertexAttribArray(i);
-        }
-        
+        }       
 
         if(Model->VBO[0])
         {
@@ -155,7 +133,6 @@ aglDrawRenderTarget(render_object *Target)
             glBindBuffer(GL_ARRAY_BUFFER, Model->VBO[1]);
             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(*Model->UVs), 0); 
         }
-        
 
         if(Model->GroupCount > 0)
         {
@@ -165,12 +142,12 @@ aglDrawRenderTarget(render_object *Target)
                 uint32 GroupEnd   = Model->GroupIndex[i+1].VertexIndex;
                 uint32 GroupMat   = Model->GroupIndex[i].MaterialIndex;
 
-                material_map Material = Model->Materials[GroupMat];
+                material Material = Model->Materials[GroupMat];
                 if(Material.TextureID >= 0) glBindTexture(GL_TEXTURE_2D, Material.TextureID);
-                glDrawArrays(GL_TRIANGLES, GroupBegin, GroupEnd - GroupBegin);
+                glDrawArrays(Target->glRenderType, GroupBegin, GroupEnd - GroupBegin);
             }
         } else glDrawArrays(GL_TRIANGLES, 0, Model->VertexCount);
-            
+
         for (int i=0; i<3; i++)
         {
             if(Model->VBO[i] > 0) glDisableVertexAttribArray(i);

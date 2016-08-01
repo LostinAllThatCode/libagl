@@ -49,6 +49,11 @@
 extern "C" {
 #endif
     
+    struct agl_keyboad_input
+    {
+        GLchar Keys[256];
+    };
+    
     struct agl_mouse_input
     {
         GLint X;
@@ -104,6 +109,9 @@ extern "C" {
     AGLAPI PFNGLENABLEVERTEXATTRIBARRAYPROC    glEnableVertexAttribArray;
     AGLAPI PFNGLVERTEXATTRIBPOINTERPROC        glVertexAttribPointer;
     AGLAPI PFNGLDISABLEVERTEXATTRIBARRAYPROC   glDisableVertexAttribArray;
+
+    AGLAPI PFNGLVERTEXATTRIBDIVISORPROC        glVertexAttribDivisor;
+    AGLAPI PFNGLDRAWARRAYSINSTANCEDPROC        glDrawArraysInstanced;
     
     #define aglAssignFunc(FN, P) if (!FN) FN = P
     
@@ -118,7 +126,7 @@ extern "C" {
     typedef void  (APIENTRYP PFNAGLRESIZEPROC) (int width, int height);
     AGLAPI PFNAGLRESIZEPROC aglResizeScene;
     #define aglAssignResizeScene(P) aglAssignFunc(aglResizeScene, P);
-
+/*
     typedef void  (APIENTRYP PFNAGLKEYDOWNPROC) (unsigned int Key);
     AGLAPI PFNAGLKEYDOWNPROC aglKeyDown;
     #define aglAssignKeyDown(P) aglAssignFunc(aglKeyDown, P);
@@ -126,7 +134,7 @@ extern "C" {
     typedef void  (APIENTRYP PFNAGLKEYUPPROC) (unsigned int Key);
     AGLAPI PFNAGLKEYUPPROC aglKeyUp;
     #define aglAssignKeyUp(P) aglAssignFunc(aglKeyUp, P);
-
+*/
     typedef void  (APIENTRYP PFNAGLMOUSEDOWNPROC) (unsigned int Button, int X, int Y);
     AGLAPI PFNAGLMOUSEDOWNPROC aglMouseDown;
     #define aglAssignMouseDown(P) aglAssignFunc(aglMouseDown, P);
@@ -152,7 +160,8 @@ extern "C" {
     AGLAPI GLuint    aglGetCurrentFPS(void);
     AGLAPI GLfloat   aglGetDelta(void);
     AGLAPI GLboolean aglCleanUp(void);
-
+    AGLAPI GLboolean aglKeyDown(char Key);
+    
     AGLAPI GLint     aglCompileShader(const char *Source, GLenum Type);
     AGLAPI GLint     aglLoadAndCompileShader(char *Filename, GLenum Type);
     AGLAPI GLboolean aglLinkProgram(GLuint ProgramID, GLint *ShaderArray, GLuint Length);
@@ -164,6 +173,8 @@ extern "C" {
            // Create your window and opengl context and return GL_TRUE on success or GL_FALSE on failure.
        }
     */
+    
+    void *    aglPlatformGetProcAddress(char *Function);
     HGLRC*    aglPlatformCreateContext(char *title, int width, int height);
     GLboolean aglPlatformContextAlive(void);
     void      aglPlatformUpdateContext(void);
@@ -172,6 +183,7 @@ extern "C" {
     GLfloat   aglPlatformGetMilliSeconds(void);
     void      aglPlatformEndFrame(void);
     GLboolean aglPlatformDestroyContext(void);
+    GLboolean aglPlatformKeyDown(GLchar key);
     
 #ifdef __cplusplus
 }

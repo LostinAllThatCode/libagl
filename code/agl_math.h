@@ -494,13 +494,25 @@ IdentityMat4x4()
 }
 
 inline mat4x4
-TranslateMat4x4(r32 x, r32 y, r32 z)
+TranslationMatrix(r32 x, r32 y, r32 z)
 {
     mat4x4 Result = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         x,    y,    z,    1.0f
+    };
+    return Result;
+}
+
+inline mat4x4
+ScaleMatrix(r32 x, r32 y, r32 z)
+{
+    mat4x4 Result = {
+        x,    0.0f, 0.0f, 0.0f,
+        0.0f, y,    0.0f, 0.0f,
+        0.0f, 0.0f, z,    0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
     };
     return Result;
 }
@@ -513,11 +525,9 @@ MultMat3x3(mat3x3 A, mat3x3 B)
     Result.m0 = (A.m0 * B.m0) + (A.m3 * B.m1) + (A.m6 * B.m2);
     Result.m3 = (A.m0 * B.m3) + (A.m3 * B.m4) + (A.m6 * B.m5);
     Result.m6 = (A.m0 * B.m6) + (A.m3 * B.m7) + (A.m6 * B.m8);
-
     Result.m1 = (A.m1 * B.m0) + (A.m4 * B.m1) + (A.m7 * B.m2);
     Result.m4 = (A.m1 * B.m3) + (A.m4 * B.m4) + (A.m7 * B.m5);
     Result.m7 = (A.m1 * B.m6) + (A.m4 * B.m7) + (A.m7 * B.m8);
-
     Result.m2 = (A.m2 * B.m0) + (A.m5 * B.m1) + (A.m8 * B.m2);
     Result.m5 = (A.m2 * B.m3) + (A.m5 * B.m4) + (A.m8 * B.m5);
     Result.m8 = (A.m2 * B.m6) + (A.m5 * B.m7) + (A.m8 * B.m8);
@@ -552,24 +562,10 @@ inline void
 Transpose(mat4x4 *M)
 {
     mat4x4 Temp;
-
-    Temp.m0 = M->m0;
-    Temp.m1 = M->m4;
-    Temp.m2 = M->m8;
-    Temp.m3 = M->m12;
-    Temp.m4 = M->m1;
-    Temp.m5 = M->m5;
-    Temp.m6 = M->m9;
-    Temp.m7 = M->m13;
-    Temp.m8 = M->m2;
-    Temp.m9 = M->m6;
-    Temp.m10 = M->m10;
-    Temp.m11 = M->m14;
-    Temp.m12 = M->m3;
-    Temp.m13 = M->m7;
-    Temp.m14 = M->m11;
-    Temp.m15 = M->m15;
-
+    Temp.m0 = M->m0;   Temp.m4 = M->m1;   Temp.m8 = M->m2;   Temp.m12 = M->m3;
+    Temp.m1 = M->m4;   Temp.m5 = M->m5;   Temp.m9 = M->m6;   Temp.m13 = M->m7;
+    Temp.m2 = M->m8;   Temp.m6 = M->m9;   Temp.m10 = M->m10; Temp.m14 = M->m11;
+    Temp.m3 = M->m12;  Temp.m7 = M->m13;  Temp.m11 = M->m14; Temp.m15 = M->m15;
     *M = Temp;
 }
 
@@ -577,15 +573,13 @@ inline mat4x4
 FrustumMatrix(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
 {
     mat4x4 Result = NullMat4x4();
-
     Result.m0  = (Near * 2.0f) / (Right - Left);
     Result.m5  = (Near * 2.0f) / (Top - Bottom);
     Result.m8  = (Right + Left) / (Right - Left);
     Result.m9  = (Top + Bottom) / (Top - Bottom);
-    Result.m10 = - (Far + Near) / (Far - Near);
+    Result.m10 = -(Far + Near) / (Far - Near);
     Result.m11 = -1.0f;
-    Result.m14 = - (2.0f * Far * Near) / (Far - Near);
-    
+    Result.m14 = -(2.0f * Far * Near) / (Far - Near);
     return Result;
 }
 
@@ -604,7 +598,6 @@ LookAtMatrix(v3 Eye, v3 Target, v3 Up)
     v3 z = NormalizeV3(Eye - Target);
     v3 x = NormalizeV3(CrossV3(Up, z));
     v3 y = NormalizeV3(CrossV3(z, x));
-
     Result.m0 = x.x;
     Result.m1 = x.y;
     Result.m2 = x.z;
@@ -617,15 +610,9 @@ LookAtMatrix(v3 Eye, v3 Target, v3 Up)
     Result.m9 = z.y;
     Result.m10 = z.z;
     Result.m11 = -((z.x*Eye.x) + (z.y*Eye.y) + (z.z*Eye.z));
-    Result.m12 = 0.0f;
-    Result.m13 = 0.0f;
-    Result.m14 = 0.0f;
     Result.m15 = 1.0f;
-
     return Result;
 }
-
-
 
 #if 0
 inline mat4

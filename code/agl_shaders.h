@@ -1,7 +1,6 @@
 #if !defined(AGL_SHADERS_H)
 #define GLSL(source) "#version 330\n" #source
 
-
 // FRAGMENT SHADERS
 const char *
 AGL_SHADERS_FRAG_1 = GLSL
@@ -33,7 +32,7 @@ AGL_SHADERS_FRAG_3 = GLSL
         uniform sampler2D myTextureSampler;
 
         void main(){
-            color = texture( myTextureSampler, UV ).rgb;
+                color = texture( myTextureSampler, UV ).rgb;
         }
 
 );
@@ -87,17 +86,19 @@ const char *
 AGL_SHADERS_VERT_4 = GLSL
     (
         layout(location = 0) in vec3 vertexPosition;
-        layout(location = 1) in vec3 vertexUV;
+        layout(location = 1) in vec2 vertexUV;
+        layout(location = 2) in vec3 vertexNormal;
 
-        layout(location = 2) uniform mat4 mvp
-        out vec4 color;
+        uniform mat4 ModelViewProjection;
 
-      
-        //uniform mat4 mvp;
+        out vec2 UV;
+        out vec3 Normal;
         
         void main(){
-            gl_Position = mvp * vec4(vertexPosition, 1);
-            color = gl_Color;
+            gl_Position = ModelViewProjection * vec4(vertexPosition, 1);
+
+            UV = vertexUV;
+            Normal = vertexNormal;
         }
      );
 
