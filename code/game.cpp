@@ -14,6 +14,8 @@
 #include <stdio.h>
 
 agl_camera Camera;
+mat4x4 CurrentMatrix;
+
 
 void
 DrawGrid(u32 Width, u32 Height)
@@ -28,12 +30,10 @@ DrawGrid(u32 Width, u32 Height)
     glMultMatrixf(Camera.ViewMatrix.E);
     
     glDisable(GL_DEPTH_TEST);
-    // grid
     for(s32 x=StartX; x < EndX; x++)
     {
         for(s32 z=StartZ; z < EndZ; z++)
         {
-#if 1       // Set to one if you want to see a flooring
             glColor3f(.2f, .2f, .2f);
             glBegin(GL_QUADS);
                 glVertex3f(x, 0, z);
@@ -41,7 +41,6 @@ DrawGrid(u32 Width, u32 Height)
                 glVertex3f(x+1, 0, z+1);
                 glVertex3f(x, 0, z+1);
             glEnd();
-#endif
             glColor3f(.6f, .6f, .6f);
             glBegin(GL_LINE_LOOP);
                 glVertex3i(x, 0, z);
@@ -53,15 +52,12 @@ DrawGrid(u32 Width, u32 Height)
     }
 
     glBegin(GL_LINES);
-        // x axis 
         glColor3f(1.0f, 0.0f, 0.0f);
         glVertex3f(-1.0f, 0.0f, 0.0f);
         glVertex3f(1.0f, 0.0f, 0.0f);
-        // y axis
         glColor3f(0.0f, 1.0f, 0.0f);
         glVertex3f(0.0f, -1.0f, 0.0f);
         glVertex3f(0.0f, 1.0f, 0.0f);
-        // z axis
         glColor3f(0.0f, 0.0f, 1.0f);
         glVertex3f(0.0f, 0.0f, -1.0f);
         glVertex3f(0.0f, 0.0f, 1.0f);
@@ -141,8 +137,8 @@ main(int argc, char **argv)
                 }
                 if(aglMouseInput.Left)
                 {
-                    Camera.HorizontalAngle -= aglMouseInput.dX * Delta * (Speed * .05f);
-                    Camera.VerticalAngle -= aglMouseInput.dY * Delta * (Speed * .05f);
+                    Camera.HorizontalAngle -= aglMouseInput.dX *  (Speed / 1000.f);
+                    Camera.VerticalAngle -= aglMouseInput.dY * (Speed / 1000.f);
                 }
                 aglCameraUpdate(&Camera);
             }
@@ -152,7 +148,7 @@ main(int argc, char **argv)
             DrawGrid(64, 64);
 
             glUseProgram(ShaderID);
-
+#if 0
             for (int i=0; i < (sizeof(Models) / sizeof(Models[0])); i++)
             {
                 render_object *Object = Models + i;
@@ -162,17 +158,28 @@ main(int argc, char **argv)
                 {
                     for(int k=-T; k <= T; k+=4)
                     {
+                        mat4x4 Model;
+
                         glLoadIdentity();
                         glTranslatef(Object->Position.x + j, Object->Position.y, Object->Position.z + k);
                 
                         glScalef(Object->Scale.x, Object->Scale.y, Object->Scale.z);
                         glRotatef(Object->Rotation, Object->RotVector.x, Object->RotVector.y, Object->RotVector.z);
-                
-                        aglCameraCalcMVP(&Camera, mvp);
+
+                        Model = MultMat4x4(IdentityMat4x4(), TranslationMatrix(j, 0, k));
+                        aglCameraCalcMVP(&Camera, mvp, &Model);
                         aglDrawRenderTarget(Models + i);
                     }
                 }
             }
+#endif
+            mat4x4 Model = IdentityMat4x4();
+            Model = MultMat4x4(Model, ScaleMatrix(2, 2, 2));
+            Model = MultMat4x4(Model, TranslationMatrix(5, 0, 5));
+
+            aglCameraCalcMVP(&Camera, mvp, &Model);
+            aglDrawRenderTarget(Models);
+           
             
             glUseProgram(0);
             aglUpdate();

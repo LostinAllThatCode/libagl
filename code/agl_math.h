@@ -573,6 +573,7 @@ inline mat4x4
 FrustumMatrix(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
 {
     mat4x4 Result = NullMat4x4();
+#if 0
     Result.m0  = (Near * 2.0f) / (Right - Left);
     Result.m5  = (Near * 2.0f) / (Top - Bottom);
     Result.m8  = (Right + Left) / (Right - Left);
@@ -580,6 +581,15 @@ FrustumMatrix(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
     Result.m10 = -(Far + Near) / (Far - Near);
     Result.m11 = -1.0f;
     Result.m14 = -(2.0f * Far * Near) / (Far - Near);
+#else
+    Result.m0  = (Near * 2.0f) / (Right - Left);
+    Result.m2  = (Right + Left) / (Right - Left);
+    Result.m5  = (Near * 2.0f) / (Top - Bottom);
+    Result.m6  = (Top + Bottom) / (Top - Bottom);
+    Result.m10 = -(Far + Near) / (Far - Near);
+    Result.m11 = -(2.0f * Far * Near) / (Far - Near);
+    Result.m14 = -1.0f;
+#endif
     return Result;
 }
 
@@ -616,17 +626,6 @@ LookAtMatrix(v3 Eye, v3 Target, v3 Up)
 
 #if 0
 inline mat4
-ScalingMatrix(v3 A)
-{
-    mat4 Result = Mat4x4(1);
-    Result.R[0][0] = A.E[0];
-    Result.R[1][1] = A.E[1];
-    Result.R[2][2] = A.E[2];
-    Result.R[3][3] = 1;
-    return Result;
-}
-
-inline mat4
 RotationMatrix(r32 Angle, v3 A)
 {
     Angle = Angle * (PI/180);
@@ -644,93 +643,6 @@ RotationMatrix(r32 Angle, v3 A)
     Result.R[3][3] = 1;
     return Result;
 }
-
-inline mat4
-TranslationMatrix(v3 A)
-{
-    mat4 Result = Mat4x4(1);
-    Result.R[0][3] = A.E[0];
-    Result.R[1][3] = A.E[1];
-    Result.R[2][3] = A.E[2];
-    Result.R[3][3] = 1.0f;
-    return Result;
-}
-
-
-// Matrix operator overloading
-inline mat4
-operator*(mat4 A, mat4 B)
-{
-    mat4 Result = {};
-    for (int i=0; i < 4; i++)
-    {
-        for (int j=0; j < 4; j++)
-        {
-            for (int k=0; k < 4; k++)
-            {
-                Result.R[i][j] += A.R[i][k] * B.R[k][j];
-            }
-        }
-    }
-    return Result;
-}
-
-inline mat4
-operator*=(mat4 &A, mat4 B)
-{
-    mat4 Temp = Mat4x4();
-    for (int i=0; i < 4; i++)
-    {
-        for (int j=0; j < 4; j++)
-        {
-            for (int k=0; k < 4; k++)
-            {
-                Temp.R[i][j] += A.R[i][k] * B.R[k][j];
-            }
-        }
-    }
-    A = Temp;
-    return A;
-}
-
-inline void
-Mat4x4Scale(mat4 &M, v3 A)
-{ 
-    M *= ScalingMatrix(A);
-}
-
-inline void
-Mat4x4Rotate(mat4 &M, r32 Angle, v3 A)
-{ 
-    M *= RotationMatrix(Angle, A);
-}
-
-
-inline void
-Mat4x4Translate(mat4 &M, v3 A)
-{ 
-    M *= TranslationMatrix(A);
-}
-
-void
-_MatPrint(r32 *M, u32 Elements)
-{
-    u32 Size = sqrt(Elements);
-    for (int i=0;i<Size;i++)
-    {
-        for (int j=0;j<Size;j++)
-        {
-            r32 *Value = M + (i*Size) + j; 
-            printf("[%i,%i]%.2f\t", i, j, *Value);
-        }
-        printf("\n");
-    }
-}
-
-#define MatPrint(M) _MatPrint((r32 *)&M, sizeof(M) / sizeof(M.E[0]));
 #endif
-
-
-
 #define AGL_MATH_H
 #endif

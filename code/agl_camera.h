@@ -33,7 +33,7 @@ aglCameraPerspective(agl_camera *Camera, GLfloat FOV, GLfloat Width, GLfloat Hei
     Camera->Far = Far;
 
     Camera->ProjectionMatrix = PerspectiveMatrix(FOV, Width / Height, Near, Far);
-    Transpose(&Camera->ProjectionMatrix);
+    //Transpose(&Camera->ProjectionMatrix);
     
 
     glViewport(0, 0, Camera->Width, Camera->Height);
@@ -58,22 +58,25 @@ aglCameraUpdate(agl_camera *Camera)
 }
 
 void
-aglCameraCalcMVP(agl_camera *Camera, GLuint ID)
+aglCameraCalcMVP(agl_camera *Camera, GLuint ID, mat4x4 *Model)
 {
-    mat4x4 Result, Model;
+    mat4x4 Result;
+    /*
     glGetFloatv(GL_MODELVIEW_MATRIX, Model.E);
     glLoadIdentity();
     glMultMatrixf(Camera->ProjectionMatrix.E);
     glMultMatrixf(Camera->ViewMatrix.E);
-    glMultMatrixf(Model.E);
+    glMultMatrixf(Model.E);  
     glGetFloatv(GL_MODELVIEW_MATRIX, Result.E);
+    */
+#if 0
+    Result = MultMat4x4(IdentityMat4x4(), Camera->ProjectionMatrix);
+    Result = MultMat4x4(Result, Camera->ViewMatrix);
+    Result = MultMat4x4(Result, Model);
+#else
+    Result = MultMat4x4(IdentityMat4x4(), *Model);
+    Result = MultMat4x4(Result, Camera->ViewMatrix);
+    Result = MultMat4x4(Result, Camera->ProjectionMatrix);    
+#endif
     glUniformMatrix4fv(ID, 1, GL_FALSE, (const float *) Result.E);
-}
-
-void
-aglCameraMove(agl_camera *Camera, v3 Move)
-{
-    glLoadMatrixf(Camera->ViewMatrix.E);
-    glTranslatef(Move.x, Move.y, Move.z);
-    glGetFloatv(GL_MODELVIEW_MATRIX, Camera->ViewMatrix.E);
 }
