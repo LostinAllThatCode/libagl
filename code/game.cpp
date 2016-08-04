@@ -29,8 +29,12 @@ DrawGrid(u32 Width, u32 Height)
     s32 StartZ = -(Height / 2);
     s32 EndZ   = (Height / 2);
     
+    glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glMultMatrixf(Projection.E);
+    
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
     glMultMatrixf(View.E);
     
     glDisable(GL_DEPTH_TEST);
