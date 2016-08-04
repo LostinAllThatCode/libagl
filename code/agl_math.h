@@ -3,8 +3,6 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-
-
 // NOTE: 2D vector implementation
 union v2
 {
@@ -517,7 +515,16 @@ ScaleMatrix(r32 x, r32 y, r32 z)
     return Result;
 }
 
-// NOTE: General matrix operations
+//TODO: Rotation matrix implementation
+#if 0
+inline mat4x4
+RotationMatrix(r32 Angle, r32 x, r32 y, r32 z)
+{
+    mat4x4 Result = NullMat4x4();
+    return Result;    
+}
+#endif
+
 inline mat3x3
 MultMat3x3(mat3x3 A, mat3x3 B)
 {
@@ -624,11 +631,13 @@ LookAtMatrix(v3 Eye, v3 Target, v3 Up)
     return Result;
 }
 
+
 #if 0
+// Angle in Radians
 inline mat4
 RotationMatrix(r32 Angle, v3 A)
 {
-    Angle = Angle * (PI/180);
+    // Angle = Angle * (PI/180);
     
     mat4 Result = Mat4x4(1);
     Result.R[0][0] = (1-cos(Angle)) * pow(A.x, 2) + cos(Angle);

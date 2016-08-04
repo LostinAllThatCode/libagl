@@ -6,7 +6,7 @@ enum ModelDataRawType {
 
 struct render_group
 {
-    uint32 VertexIndex;
+    u32 VertexIndex;
     uint32 MaterialIndex;
 };
 
@@ -16,22 +16,22 @@ struct material
     v3      Ambient;
     v3      Diffuse;
     v3      Specular;
-    uint32  SpecExp;  
+    u32  SpecExp;  
     
-    uint32  IlluminationMode;
+    u32  IlluminationMode;
     
-    uint32  TextureID;
+    u32  TextureID;
 };
 
 struct model_data
 {
-    uint32 VBO[3];                       //NOTE: 0=Vertex, 1=UV, 2=Normal
+    u32 VBO[3];                       //NOTE: 0=Vertex, 1=UV, 2=Normal
     material Materials[12];
     uint32 MaterialCount;  
     render_group GroupIndex[256];
-    uint32 GroupCount;
+    u32 GroupCount;
 
-    uint32 VertexCount;
+    u32 VertexCount;
     v3 *Vertices;
     v2 *UVs;
     v3 *Normals;

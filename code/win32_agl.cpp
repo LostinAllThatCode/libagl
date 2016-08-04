@@ -9,7 +9,7 @@ agl_keyboad_input KeybInput = {};
 LARGE_INTEGER PerformanceFrequency;
 LARGE_INTEGER BeginFrame, EndFrame;
 GLfloat FixedFrameRateMicro;
-GLfloat CurrentFrameRateMicro;
+GLfloat CurrentFrameRateMicro = 0;
 #define TIMER_RESOLUTION 1
 
 int FrameCount = 0;
@@ -111,12 +111,15 @@ aglPlatformEndFrame(void)
     {
         if(CurrentFrameRateMicro < FixedFrameRateMicro)
         {
+            LARGE_INTEGER PreSleep, PostSleep;
             GLfloat SleepTime = (FixedFrameRateMicro - CurrentFrameRateMicro) * 1000;
             if(SleepTime > 0)
             {
                 Sleep(SleepTime);
+                LARGE_INTEGER PostSleep;
+                QueryPerformanceCounter(&PostSleep);
+                CurrentFrameRateMicro = ((GLfloat) (PostSleep.QuadPart - BeginFrame.QuadPart) / (GLfloat) PerformanceFrequency.QuadPart);
             }
-            CurrentFrameRateMicro = FixedFrameRateMicro;
         }
     }
 

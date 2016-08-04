@@ -111,39 +111,49 @@ aglDeleteRenderTarget(render_object *Target)
     return Result;
 }
 
+// NOTE: Temporary matrix parameters should get moved to a general way of handling matrices
 void
-aglDrawRenderTarget(render_object *Target)
+aglDrawRenderTarget(render_object *Target, mat4x4 *Transform, mat4x4 *View, mat4x4 *Projection, u32 Uniform)
 {
     if(Target->Model)
     {
         model_data *Model = Target->Model;
-        for (int i=0; i<3; i++)
-        {
-            if(Model->VBO[i] > 0) glEnableVertexAttribArray(i);
-        }       
-
         if(Model->VBO[0])
         {
             glBindBuffer(GL_ARRAY_BUFFER, Model->VBO[0]);
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(*Model->Vertices), 0);
+            glEnableVertexAttribArray(0);
         }
 
         if(Model->VBO[1])
         {
             glBindBuffer(GL_ARRAY_BUFFER, Model->VBO[1]);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(*Model->UVs), 0); 
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(*Model->UVs), 0);
+            glEnableVertexAttribArray(1);
         }
+        
+        if(Model->VBO[2])
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, Model->VBO[2]);
+            glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(*Model->Normals), 0);
+            glEnableVertexAttribArray(2);
+        }
+        
 
         if(Model->GroupCount > 0)
         {
             for(int i=0; i < Model->GroupCount; i++)
             {
+                uint32 GroupMat   = Model->GroupIndex[i].MaterialIndex;
                 uint32 GroupBegin = Model->GroupIndex[i].VertexIndex;
                 uint32 GroupEnd   = Model->GroupIndex[i+1].VertexIndex;
-                uint32 GroupMat   = Model->GroupIndex[i].MaterialIndex;
 
                 material Material = Model->Materials[GroupMat];
                 if(Material.TextureID >= 0) glBindTexture(GL_TEXTURE_2D, Material.TextureID);
+
+                mat4x4 Result = MultMat4x4(*Transform, *View);
+                Result = MultMat4x4(Result, *Projection);
+                glUniformMatrix4fv(Uniform, 1, GL_FALSE, (const float *) Result.E);
                 glDrawArrays(Target->glRenderType, GroupBegin, GroupEnd - GroupBegin);
             }
         } else glDrawArrays(GL_TRIANGLES, 0, Model->VertexCount);
