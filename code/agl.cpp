@@ -38,7 +38,9 @@ aglInitGLDefault(void)
 	glClearDepth(1.0f);									// Depth Buffer Setup
 	glEnable(GL_DEPTH_TEST);							// Enables Depth Testing
 	glDepthFunc(GL_LESS);								// The Type Of Depth Testing To Do
+    glEnable( GL_MULTISAMPLE );
 //    glEnable(GL_CULL_FACE);
+    
 	//glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations  
 };
 

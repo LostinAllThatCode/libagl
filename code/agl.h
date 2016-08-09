@@ -87,7 +87,6 @@ typedef real64 r64;
 #ifdef __cplusplus
 extern "C" {
 #endif
-    
     struct agl_keyboad_input
     {
         GLchar Keys[256];
@@ -215,14 +214,16 @@ extern "C" {
     
     void *    aglPlatformGetProcAddress(char *Function);
     HGLRC*    aglPlatformCreateContext(char *title, int width, int height);
-    GLboolean aglPlatformContextAlive(void);
+    b32       aglPlatformContextAlive(void);
     void      aglPlatformUpdateContext(void);
+    s32       aglPlatformContextWidth(void);
+    s32       aglPlatformContextHeight(void);
     void      aglPlatformFixedFrameRate(GLuint FramesPerSecond);
     void      aglPlatformBeginFrame(void);
-    GLfloat   aglPlatformGetMilliSeconds(void);
+    r32       aglPlatformGetMilliSeconds(void);
     void      aglPlatformEndFrame(void);
-    GLboolean aglPlatformDestroyContext(void);
-    GLboolean aglPlatformKeyDown(GLchar key);
+    b32       aglPlatformDestroyContext(void);
+    b32        aglPlatformKeyDown(GLchar key);
     
 #ifdef __cplusplus
 }

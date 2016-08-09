@@ -19,6 +19,13 @@ struct agl_camera
 
 
 void
+aglCameraSetTarget(agl_camera *Camera, v3 Target)
+{
+    Camera->Mode = FIRSTPERSON;
+    Camera->Front = Target;
+}
+
+void
 aglCameraInit(agl_camera *Camera, v3 Position = V3(0, 0, 0),
               r32 FoV = 45.0f, r32 Speed = 9.0f, r32 Sensitivity = 0.0025f,
               r32 Yaw = M_PI, r32 Pitch = 0.0f, agl_camera_mode Mode = FREE)
@@ -57,6 +64,36 @@ aglCameraUpdate(agl_camera *Camera)
                 Camera->Up = CrossV3(Camera->Right, Camera->Front);
             }
         }break;
+        case FIRSTPERSON:
+        {
+            // not implemented yet
+        }break;        
+        case STATIC:
+        {
+            // not implemented yet
+        }break;
     }
+}
+
+inline mat4x4
+aglCameraView(agl_camera *Camera)
+{
+    mat4x4 Result;
+    switch(Camera->Mode)
+    {
+        case FREE:
+        {
+            Result = LookAtMatrix(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
+        }break;
+        case FIRSTPERSON:
+        {
+            // not implemented yet
+        }break;
+        case STATIC:
+        {
+            Result = LookAtMatrix(Camera->Position, Camera->Front, Camera->Up);
+        }break;
+    }
+    return Result;
 }
 

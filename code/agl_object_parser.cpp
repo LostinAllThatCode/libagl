@@ -306,6 +306,19 @@ ParseWavefrontOBJ(FILE *File, char *Directory, void *MemoryArena)
         glBindBuffer(GL_ARRAY_BUFFER, Result->VBO[1]);
         glBufferData(GL_ARRAY_BUFFER, Result->VertexCount * sizeof(*Result->UVs), Result->UVs, GL_STATIC_DRAW);
     }
+    
+    if(jNormal > 0 && iNormal > 0)
+    {
+        Result->Normals = (v3 *) malloc( sizeof(v3) * jNormal );
+        for(int i=0; i < jNormal; i++)
+        {
+            uint32 VertexIndex = IndicesNormal[i] - Offset;
+            Result->Normals[i] = BufNormal[VertexIndex];
+        }
+        glGenBuffers(1, Result->VBO + 2);
+        glBindBuffer(GL_ARRAY_BUFFER, Result->VBO[2]);
+        glBufferData(GL_ARRAY_BUFFER, Result->VertexCount * sizeof(*Result->Normals), Result->Normals, GL_STATIC_DRAW);
+    }
 
     if(Result->VertexCount == 0) free(Result);
 

@@ -20,7 +20,19 @@ mat4x4 View;
 s32 GlobalWidth = 1024;
 s32 GlobalHeight = 768;
 
-// NOTE: Quick and dirty grid floor
+LARGE_INTEGER Freq;
+#define BEGIN_TIMED_SECTION(name)                          \
+    LARGE_INTEGER name ## Begin;                           \
+    QueryPerformanceCounter(&name ## Begin)
+
+#define END_TIMED_SECTION(name)                                         \
+    LARGE_INTEGER name ## End;                                          \
+    QueryPerformanceCounter(&name ## End);                              \
+    printf("Section[%s] : %f ms\n", #name, 1000 * ((GLfloat) (name ## End ## .QuadPart - name ## Begin ## .QuadPart) / (GLfloat) Freq.QuadPart))
+    
+
+
+// TODO: Make this a vbo and pass it to the shader, cause this is slow AF.
 void
 DrawGrid(u32 Width, u32 Height)
 {     
@@ -42,35 +54,44 @@ DrawGrid(u32 Width, u32 Height)
     {
         for(s32 z=StartZ; z < EndZ; z++)
         {
+            #if 0
             glColor3f(.2f, .2f, .2f);
             glBegin(GL_QUADS);
-            glVertex3f(x, 0, z);
-            glVertex3f(x+1, 0, z);
-            glVertex3f(x+1, 0, z+1);
-            glVertex3f(x, 0, z+1);
+            {
+                glVertex3f(x, 0, z);
+                glVertex3f(x+1, 0, z);
+                glVertex3f(x+1, 0, z+1);
+                glVertex3f(x, 0, z+1);
+            }
             glEnd();
+            #endif
             glColor3f(.6f, .6f, .6f);
             glBegin(GL_LINE_LOOP);
-            glVertex3i(x, 0, z);
-            glVertex3i(x+1, 0, z);
-            glVertex3i(x+1, 0, z+1);
-            glVertex3i(x, 0, z+1);
+            {
+                glVertex3i(x, 0, z);
+                glVertex3i(x+1, 0, z);
+                glVertex3i(x+1, 0, z+1);
+                glVertex3i(x, 0, z+1);
+            }
             glEnd();
         }
     }
-    
-    glBegin(GL_LINES);
-    glColor3f(0.5f, 0.0f, 0.0f);
-    glVertex3f(-0.5f, 0.0f, 0.0f);
-    glVertex3f(0.5f, 0.0f, 0.0f);
-    glColor3f(0.0f, 0.5f, 0.0f);
-    glVertex3f(0.0f, -0.5f, 0.0f);
-    glVertex3f(0.0f, 0.5f, 0.0f);
-    glColor3f(0.0f, 0.0f, 0.5f);
-    glVertex3f(0.0f, 0.0f, -0.5f);
-    glVertex3f(0.0f, 0.0f, 0.5f);
-    glEnd();
 
+    glLineWidth(2);
+    glBegin(GL_LINES);
+    {
+        glColor3f(1.f, 0.0f, 0.0f);
+        glVertex3f(-0.5f, 0.0f, 0.0f);
+        glVertex3f(0.5f, 0.0f, 0.0f);
+        glColor3f(0.0f, 1.f, 0.0f);
+        glVertex3f(0.0f, -0.5f, 0.0f);
+        glVertex3f(0.0f, 0.5f, 0.0f);
+        glColor3f(0.0f, 0.0f, 1.f);
+        glVertex3f(0.0f, 0.0f, -0.5f);
+        glVertex3f(0.0f, 0.0f, 0.5f);
+    }
+    glEnd();
+    glLineWidth(1);
     glEnable(GL_DEPTH_TEST);
 }
 
@@ -81,7 +102,7 @@ BeginScene(agl_camera *Camera)
     glViewport(0, 0, GlobalWidth, GlobalHeight);
     
     Projection = PerspectiveMatrix(Camera->FoV, (r32)GlobalWidth / (r32)GlobalHeight, .1f, 100.0f);
-    View = LookAtMatrix(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
+    View = aglCameraView(Camera);
 }
 
 void 
@@ -101,6 +122,8 @@ ResizeScene(s32 Width, s32 Height)
 int
 main(int argc, char **argv)
 {
+    QueryPerformanceFrequency(&Freq);
+    
     win32_context *Ctx;
     HGLRC *GLContext;
     aglAssignResizeScene(ResizeScene);
@@ -122,22 +145,24 @@ main(int argc, char **argv)
         };
         if(!aglLinkProgram(ShaderID, Shaders, ARRAY_COUNT(Shaders)))
         {
+            aglCleanUp();
             printf("Error loading built-in shaders\nPress enter to exit");
             scanf("%c", WindowTitle); 
             return -1;
         }
 
-        GLint mvp = glGetUniformLocation(ShaderID, "ModelViewProjection");
+        GLint mvp = glGetUniformLocation(ShaderID, "matModelViewProj");
 
+        BEGIN_TIMED_SECTION(LoadingModel);
         void *TempMemArena = malloc ( LOAD_MODEL_MEM_SIZE );
-        render_object Models[] =
-        {
-            aglCreateRenderTarget(TempMemArena, "models\\stormtrooper\\stormtrooper.obj")
-        };
+        render_object Models[] = { aglCreateRenderTarget(TempMemArena, "models\\stormtrooper\\stormtrooper.obj")};
         free(TempMemArena);
+        END_TIMED_SECTION(LoadingModel);
         
         aglCameraInit(&Camera, V3(0, 5, 15));
-        aglSetFixedFrameRate(120);
+        aglSetFixedFrameRate(60);
+
+
         while(aglIsRunning())
         {
             // TODO: Move this to the platform layer (win32_agl.cpp) and provide access to it
@@ -145,13 +170,16 @@ main(int argc, char **argv)
             SetWindowText(Ctx->Hwnd, WindowTitle);
 
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
             BeginScene(&Camera);
-                DrawGrid(64, 64);
+            {
+        BEGIN_TIMED_SECTION(GRIDDRAW);
+        DrawGrid(32, 32);
+        END_TIMED_SECTION(GRIDDRAW);
                 glUseProgram(ShaderID);
-                aglDrawRenderTarget(Models, &TranslationMatrix(-3, 0, 0), &View, &Projection, mvp);
-                aglDrawRenderTarget(Models, &IdentityMat4x4(), &View, &Projection, mvp);
-                aglDrawRenderTarget(Models, &TranslationMatrix(3, 0, 0), &View, &Projection, mvp);
+                aglDrawRenderBatch(Models, &TranslationMatrix(-3, 0, -3), &View, &Projection, mvp, 3);
+                aglDrawRenderBatch(Models, &TranslationMatrix(-3, 0, 0), &View, &Projection, mvp, 3);
+                aglDrawRenderBatch(Models, &TranslationMatrix(-3, 0, 3), &View, &Projection, mvp, 3);
+            }
             EndScene();
             
             glUseProgram(0);

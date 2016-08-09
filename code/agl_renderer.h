@@ -16,11 +16,9 @@ struct material
     v3      Ambient;
     v3      Diffuse;
     v3      Specular;
-    u32  SpecExp;  
-    
-    u32  IlluminationMode;
-    
-    u32  TextureID;
+    u32     SpecExp;  
+    u32     IlluminationMode;  
+    u32     TextureID;
 };
 
 struct model_data
@@ -49,6 +47,22 @@ struct render_object
     GLenum glRenderType;
 };
 
+struct texture_mapping
+{
+    u32      Index;
+    material *Material;
+};
+
+struct mesh
+{
+    u32 VAO;
+    u32 VBO[8];
+    v3  *Vertices;
+    v2  *TextureCoords;
+    v3  *Normals;
+    u32 VertexCount;
+    u32 TriangleCount;
+};
 
 #define AGL_RENDERER_H
 #endif

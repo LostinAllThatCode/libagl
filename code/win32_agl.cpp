@@ -64,7 +64,7 @@ ToggleFullscreen()
 }
 #endif
 
-GLboolean
+b32
 aglPlatformContextAlive(void)
 {
     MSG msg;
@@ -139,7 +139,7 @@ aglPlatformUpdateContext()
     SwapBuffers(Context.DC);
 }
 
-GLboolean
+b32
 aglPlatformDestroyContext(void)
 {
     GLboolean Result = GL_TRUE;
@@ -313,7 +313,7 @@ aglPlatformCreateContext(char* title, int width, int height)
 		return 0;
 	}
 
-#if 0
+#if 1
     wgl_create_context_attribts_arb *wglCreateContextAttribsARB = (wgl_create_context_attribts_arb *)wglGetProcAddress("wglCreateContextAttribsARB");
     if (wglCreateContextAttribsARB)
     {
@@ -326,16 +326,29 @@ aglPlatformCreateContext(char* title, int width, int height)
                 WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
                 0,
             };
-
-        HGLRC modern_hRC = wglCreateContextAttribsARB(hDC, 0, Attribs);
+        /*
+        int Attribs[] = {
+            WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
+            WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
+            WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
+            WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+            WGL_COLOR_BITS_ARB, 32,
+            WGL_DEPTH_BITS_ARB, 24,
+            WGL_STENCIL_BITS_ARB, 8,
+            WGL_SAMPLE_BUFFERS_ARB, 1, //Number of buffers (must be 1 at time of writing)
+            WGL_SAMPLES_ARB, 4,        //Number of samples
+            0
+        };
+        */
+        HGLRC modern_hRC = wglCreateContextAttribsARB(Context.DC, 0, Attribs);
         if (modern_hRC)
         {
-            if(wglMakeCurrent(hDC, modern_hRC))
+            if(wglMakeCurrent(Context.DC, modern_hRC))
             {
                 wglDeleteContext(hRC);
                 hRC = modern_hRC;
             }
-            
+            printf("MODERN STUFF\n");
         }
         else
         {
@@ -356,7 +369,7 @@ aglPlatformCreateContext(char* title, int width, int height)
     return &hRC;
 }
 
-GLboolean
+b32
 aglPlatformKeyDown(GLchar Key)
 {
     return KeybInput.Keys[Key];

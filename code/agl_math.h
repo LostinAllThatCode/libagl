@@ -430,7 +430,7 @@ NormalizeV4(v4 A)
     return(Result);
 }
 
-// NOTE: matrix implementation (opengl coloum order)
+// NOTE: 3x3 and 4x4 matrix implementation (opengl coloum order)
 union mat3x3
 {
     struct
@@ -454,6 +454,7 @@ union mat4x4
     r32 E[16];
 };
 
+// NOTE: General 3x3 and 4x4 matrix operations
 inline mat3x3
 NullMat3x3()
 {
@@ -541,7 +542,16 @@ MultMat3x3(mat3x3 A, mat3x3 B)
     return Result;
 }
 
-// NOTE: General matrix operations
+inline mat3x3
+MultMat3x3(mat3x3 A, r32 V)
+{
+    mat3x3 Result;
+    Result.m0 *= V; Result.m3 *= V; Result.m6 *= V;
+    Result.m1 *= V; Result.m4 *= V; Result.m7 *= V;
+    Result.m2 *= V; Result.m5 *= V; Result.m8 *= V;
+    return Result;
+}
+
 inline mat4x4
 MultMat4x4(mat4x4 A, mat4x4 B)
 {
@@ -565,15 +575,105 @@ MultMat4x4(mat4x4 A, mat4x4 B)
     return Result;
 }
 
-inline void
-Transpose(mat4x4 *M)
+inline mat4x4
+MultMat4x4(mat4x4 A, r32 V)
+{
+    mat4x4 Result;
+    Result.m0 *= V; Result.m4 *= V; Result.m8 *= V;  Result.m12 *= V; 
+    Result.m1 *= V; Result.m5 *= V; Result.m9 *= V;  Result.m13 *= V; 
+    Result.m2 *= V; Result.m6 *= V; Result.m10 *= V; Result.m14 *= V; 
+    Result.m3 *= V; Result.m7 *= V; Result.m11 *= V; Result.m15 *= V; 
+    return Result;
+}
+
+inline mat4x4
+Transpose(mat4x4 M)
 {
     mat4x4 Temp;
-    Temp.m0 = M->m0;   Temp.m4 = M->m1;   Temp.m8 = M->m2;   Temp.m12 = M->m3;
-    Temp.m1 = M->m4;   Temp.m5 = M->m5;   Temp.m9 = M->m6;   Temp.m13 = M->m7;
-    Temp.m2 = M->m8;   Temp.m6 = M->m9;   Temp.m10 = M->m10; Temp.m14 = M->m11;
-    Temp.m3 = M->m12;  Temp.m7 = M->m13;  Temp.m11 = M->m14; Temp.m15 = M->m15;
-    *M = Temp;
+    Temp.m0 = M.m0;   Temp.m4 = M.m1;   Temp.m8 = M.m2;   Temp.m12 = M.m3;
+    Temp.m1 = M.m4;   Temp.m5 = M.m5;   Temp.m9 = M.m6;   Temp.m13 = M.m7;
+    Temp.m2 = M.m8;   Temp.m6 = M.m9;   Temp.m10 = M.m10; Temp.m14 = M.m11;
+    Temp.m3 = M.m12;  Temp.m7 = M.m13;  Temp.m11 = M.m14; Temp.m15 = M.m15;
+    return Temp;
+}
+/*
+inline r32
+DeterminantMat4x4(mat4x4 A)
+{
+    r32 Result =
+        (A.m0 * (A.m5 * A.m10 * A.m15 + A.m9 * A.m14 * A.m7 + A.m13 * A.m6 * A.m11 - A.m7 * A.m10 * A.m13 - A.m11 * A.m14 * A.m5 - A.m15 * A.m6 * A.m9)) -
+        (A.m1 * (A.m4 * A.m10 * A.m15 + A.m8 * A.m14 * A.m7 + A.m12 * A.m6 * A.m11 - A.m7 * A.m10 * A.m12 - A.m11 * A.m14 * A.m4 - A.m15 * A.m6 * A.m8)) +
+        (A.m2 * (A.m4 * A.m9 * A.m15 + A.m8 * A.m13 * A.m7 + A.m12 * A.m5 * A.m11 - A.m7 * A.m9 * A.m12 - A.m11 * A.m13 * A.m4 - A.m15 * A.m5 * A.m8)) -
+        (A.m3 * (A.m4 * A.m9 * A.m14 + A.m8 * A.m13 * A.m6 + A.m12 * A.m5 * A.m10 - A.m6 * A.m9 * A.m12 - A.m10 * A.m13 * A.m4 - A.m14 * A.m5 * A.m8));
+     return Result;
+}
+*/
+
+
+inline r32
+DeterminantMat4x4(mat4x4 A)
+{
+    r32 det = 0;
+    r32 *m = A.E;
+    r32 inv[16];
+    
+    inv[0]  = m[5]  * m[10] * m[15] - m[5]  * m[11] * m[14] - m[9]  * m[6]  * m[15] + m[9]  * m[7]  * m[14] + m[13] * m[6]  * m[11] - m[13] * m[7]  * m[10];
+    inv[4]  = -m[4]  * m[10] * m[15] + m[4]  * m[11] * m[14] + m[8]  * m[6]  * m[15] - m[8]  * m[7]  * m[14] - m[12] * m[6]  * m[11] + m[12] * m[7]  * m[10];
+    inv[8]  = m[4]  * m[9] * m[15] - m[4]  * m[11] * m[13] - m[8]  * m[5] * m[15] + m[8]  * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
+    inv[12] = -m[4]  * m[9] * m[14] + m[4]  * m[10] * m[13] + m[8]  * m[5] * m[14] - m[8]  * m[6] * m[13] - m[12] * m[5] * m[10] +  m[12] * m[6] * m[9];
+    inv[1]  = -m[1]  * m[10] * m[15] + m[1]  * m[11] * m[14] + m[9]  * m[2] * m[15] - m[9]  * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
+    inv[5]  = m[0]  * m[10] * m[15] - m[0]  * m[11] * m[14] - m[8]  * m[2] * m[15] + m[8]  * m[3] * m[14] +  m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
+    inv[9]  = -m[0]  * m[9] * m[15] + m[0]  * m[11] * m[13] + m[8]  * m[1] * m[15] - m[8]  * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
+    inv[13] = m[0]  * m[9] * m[14] - m[0]  * m[10] * m[13] - m[8]  * m[1] * m[14] + m[8]  * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
+    inv[2]  = m[1]  * m[6] * m[15] -  m[1]  * m[7] * m[14] - m[5]  * m[2] * m[15] + m[5]  * m[3] * m[14] +  m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
+    inv[6]  = -m[0]  * m[6] * m[15] + m[0]  * m[7] * m[14] + m[4]  * m[2] * m[15] - m[4]  * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
+    inv[10] = m[0]  * m[5] * m[15] - m[0]  * m[7] * m[13] - m[4]  * m[1] * m[15] + m[4]  * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
+    inv[14] = -m[0]  * m[5] * m[14] + m[0]  * m[6] * m[13] + m[4]  * m[1] * m[14] - m[4]  * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
+    inv[3]  = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
+    inv[7]  = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
+    inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
+    inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
+
+    det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+    return det;
+}
+
+
+inline mat4x4
+InverseMat4x4(mat4x4 A)
+{
+    mat4x4 Result = A;
+    r32 *m = A.E;    
+    r32 det = 0;
+    r32 inv[16];
+    
+    inv[0]  = m[5]  * m[10] * m[15] - m[5]  * m[11] * m[14] - m[9]  * m[6]  * m[15] + m[9]  * m[7]  * m[14] + m[13] * m[6]  * m[11] - m[13] * m[7]  * m[10];
+    inv[4]  = -m[4]  * m[10] * m[15] + m[4]  * m[11] * m[14] + m[8]  * m[6]  * m[15] - m[8]  * m[7]  * m[14] - m[12] * m[6]  * m[11] + m[12] * m[7]  * m[10];
+    inv[8]  = m[4]  * m[9] * m[15] - m[4]  * m[11] * m[13] - m[8]  * m[5] * m[15] + m[8]  * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
+    inv[12] = -m[4]  * m[9] * m[14] + m[4]  * m[10] * m[13] + m[8]  * m[5] * m[14] - m[8]  * m[6] * m[13] - m[12] * m[5] * m[10] +  m[12] * m[6] * m[9];
+    inv[1]  = -m[1]  * m[10] * m[15] + m[1]  * m[11] * m[14] + m[9]  * m[2] * m[15] - m[9]  * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
+    inv[5]  = m[0]  * m[10] * m[15] - m[0]  * m[11] * m[14] - m[8]  * m[2] * m[15] + m[8]  * m[3] * m[14] +  m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
+    inv[9]  = -m[0]  * m[9] * m[15] + m[0]  * m[11] * m[13] + m[8]  * m[1] * m[15] - m[8]  * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
+    inv[13] = m[0]  * m[9] * m[14] - m[0]  * m[10] * m[13] - m[8]  * m[1] * m[14] + m[8]  * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
+    inv[2]  = m[1]  * m[6] * m[15] -  m[1]  * m[7] * m[14] - m[5]  * m[2] * m[15] + m[5]  * m[3] * m[14] +  m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
+    inv[6]  = -m[0]  * m[6] * m[15] + m[0]  * m[7] * m[14] + m[4]  * m[2] * m[15] - m[4]  * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
+    inv[10] = m[0]  * m[5] * m[15] - m[0]  * m[7] * m[13] - m[4]  * m[1] * m[15] + m[4]  * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
+    inv[14] = -m[0]  * m[5] * m[14] + m[0]  * m[6] * m[13] + m[4]  * m[1] * m[14] - m[4]  * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
+    inv[3]  = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
+    inv[7]  = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
+    inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
+    inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
+    det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+    
+    if(det)
+    {
+        det = 1.0f / det;
+        for (int i=0;i<16;i++)
+        {
+            Result.E[i] = inv[i] * det;
+        }
+    }
+    return Result;   
 }
 
 inline mat4x4

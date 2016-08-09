@@ -9,12 +9,6 @@ LoadModel(char *Filename, ModelDataRawType Type, void *MemoryArena)
 
     model_data *Result = {};
     
-    //NOTE: Temporary model loading timing stuff
-    LARGE_INTEGER PerfFreq;
-    LARGE_INTEGER LoadModelBegin;    
-    QueryPerformanceFrequency(&PerfFreq);
-    QueryPerformanceCounter(&LoadModelBegin);
-
     char Directory[4096] = {};
     for(int i=strlen(Filename); i >= 0; i--)
     {
@@ -37,14 +31,9 @@ LoadModel(char *Filename, ModelDataRawType Type, void *MemoryArena)
         }
     }
 
-    //NOTE: Temporary model loading timing stuff
-    LARGE_INTEGER LoadModelEnd;
-    QueryPerformanceCounter(&LoadModelEnd);
-    
     if(Result)
     {
-        printf("Model \"%s\" loaded with %i vertices in %.2f ms\n", Filename, Result->VertexCount,
-               (r32) ((LoadModelEnd.QuadPart - LoadModelBegin.QuadPart) * 1000) / (r32) PerfFreq.QuadPart);
+        printf("Model \"%s\" loaded with %i vertices\n", Filename, Result->VertexCount);
     }
     else
     {
@@ -155,6 +144,59 @@ aglDrawRenderTarget(render_object *Target, mat4x4 *Transform, mat4x4 *View, mat4
                 Result = MultMat4x4(Result, *Projection);
                 glUniformMatrix4fv(Uniform, 1, GL_FALSE, (const float *) Result.E);
                 glDrawArrays(Target->glRenderType, GroupBegin, GroupEnd - GroupBegin);
+            }
+        } else glDrawArrays(GL_TRIANGLES, 0, Model->VertexCount);
+
+        for (int i=0; i<3; i++)
+        {
+            if(Model->VBO[i] > 0) glDisableVertexAttribArray(i);
+        }
+    }
+}
+
+void
+aglDrawRenderBatch(render_object *Target, mat4x4 *Transform, mat4x4 *View, mat4x4 *Projection, u32 Uniform, u32 Count)
+{
+    if(Target->Model)
+    {
+        model_data *Model = Target->Model;
+        if(Model->VBO[0])
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, Model->VBO[0]);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(*Model->Vertices), 0);
+            glEnableVertexAttribArray(0);
+        }
+
+        if(Model->VBO[1])
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, Model->VBO[1]);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(*Model->UVs), 0);
+            glEnableVertexAttribArray(1);
+        }
+        
+        if(Model->VBO[2])
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, Model->VBO[2]);
+            glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(*Model->Normals), 0);
+            glEnableVertexAttribArray(2);
+        }
+        
+
+        if(Model->GroupCount > 0)
+        {
+            for(int i=0; i < Model->GroupCount; i++)
+            {
+                uint32 GroupMat   = Model->GroupIndex[i].MaterialIndex;
+                uint32 GroupBegin = Model->GroupIndex[i].VertexIndex;
+                uint32 GroupEnd   = Model->GroupIndex[i+1].VertexIndex;
+
+                material Material = Model->Materials[GroupMat];
+                if(Material.TextureID >= 0) glBindTexture(GL_TEXTURE_2D, Material.TextureID);
+
+                mat4x4 Result = MultMat4x4(*Transform, *View);
+                Result = MultMat4x4(Result, *Projection);
+                glUniformMatrix4fv(Uniform, 1, GL_FALSE, (const float *) Result.E);
+                glDrawArraysInstanced(Target->glRenderType, GroupBegin, GroupEnd - GroupBegin, Count);
             }
         } else glDrawArrays(GL_TRIANGLES, 0, Model->VertexCount);
 

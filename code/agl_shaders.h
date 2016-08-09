@@ -34,7 +34,6 @@ AGL_SHADERS_FRAG_3 = GLSL
         void main(){
                 color = texture( myTextureSampler, UV ).rgb;
         }
-
 );
 
 // VERTEX SHADERS
@@ -88,14 +87,46 @@ AGL_SHADERS_VERT_4 = GLSL
         layout(location = 0) in vec3 vertexPosition;
         layout(location = 1) in vec2 vertexUV;
         layout(location = 2) in vec3 vertexNormal;
+        layout(location = 3) in vec3 vertexColor;
 
-        uniform mat4 ModelViewProjection;
+        uniform mat4 matModelViewProj;
+        uniform mat4 matModelView;
+        uniform mat4 matInverse;
 
         out vec2 UV;
         out vec3 Normal;
-        
+
+        vec3 newPos = vertexPosition;
         void main(){
-            gl_Position = ModelViewProjection * vec4(vertexPosition, 1);
+            newPos.x += mod(gl_InstanceID, 16.0) * 3;
+            newPos.z += (gl_InstanceID / 16.0) * 3;
+            gl_Position = matModelViewProj * vec4(newPos, 1);
+
+            UV = vertexUV;
+            Normal = vertexNormal;
+        }
+     );
+
+const char *
+AGL_16x16BATCHDRAW_VS = GLSL
+    (
+        layout(location = 0) in vec3 vertexPosition;
+        layout(location = 1) in vec2 vertexUV;
+        layout(location = 2) in vec3 vertexNormal;
+        layout(location = 3) in vec3 vertexColor;
+
+        uniform mat4 matModelViewProj;
+        uniform mat4 matModelView;
+        uniform mat4 matInverse;
+
+        out vec2 UV;
+        out vec3 Normal;
+
+        vec3 newPos = vertexPosition;
+        void main(){
+            newPos.x += mod(gl_InstanceID, 16.0) * 3;
+            newPos.z += (gl_InstanceID / 16.0) * 3;
+            gl_Position = matModelViewProj * vec4(newPos, 1);
 
             UV = vertexUV;
             Normal = vertexNormal;
