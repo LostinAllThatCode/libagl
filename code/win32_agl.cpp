@@ -2,6 +2,7 @@
 
 HGLRC hRC;
 win32_context Context;
+WINDOWPLACEMENT LastWindowPlacement;
 GLboolean Running;
 
 agl_keyboad_input KeybInput = {};
@@ -42,7 +43,7 @@ ToggleFullscreen()
     if(Style & WS_OVERLAPPEDWINDOW)
     {
         MONITORINFO MonitorInfo = {sizeof(MonitorInfo)};
-        if(GetWindowPlacement(Platform.WindowHandle, &Platform.LastWindowPosition) &&
+        if(GetWindowPlacement(Platform.WindowHandle, &LastWindowPlacement) &&
            GetMonitorInfo(MonitorFromWindow(Platform.WindowHandle, MONITOR_DEFAULTTOPRIMARY), &MonitorInfo))
         {
             SetWindowLong(Platform.WindowHandle, GWL_STYLE, Style & ~WS_OVERLAPPEDWINDOW);
@@ -56,13 +57,42 @@ ToggleFullscreen()
     else
     {
         SetWindowLong(Platform.WindowHandle, GWL_STYLE, Style | WS_OVERLAPPEDWINDOW);
-        SetWindowPlacement(Platform.WindowHandle, &Platform.LastWindowPosition);
+        SetWindowPlacement(Platform.WindowHandle, &LastWindowPlacement);
         SetWindowPos(Platform.WindowHandle, 0, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED); 
     }
 }
 #endif
+
+void
+aglPlatformToggleFullscreen(void)
+{
+    printf("test\n");
+    DWORD Style = GetWindowLong(Context.Hwnd, GWL_STYLE);
+    if(Style & WS_OVERLAPPEDWINDOW)
+    {
+        MONITORINFO MonitorInfo = {sizeof(MonitorInfo)};
+        if(GetWindowPlacement(Context.Hwnd, &LastWindowPlacement) &&
+           GetMonitorInfo(MonitorFromWindow(Context.Hwnd, MONITOR_DEFAULTTOPRIMARY), &MonitorInfo))
+        {
+            SetWindowLong(Context.Hwnd, GWL_STYLE, Style & ~WS_OVERLAPPEDWINDOW);
+            SetWindowPos(Context.Hwnd, HWND_TOP,
+                         MonitorInfo.rcMonitor.left, MonitorInfo.rcMonitor.top,
+                         MonitorInfo.rcMonitor.right - MonitorInfo.rcMonitor.left,
+                         MonitorInfo.rcMonitor.bottom - MonitorInfo.rcMonitor.top,
+                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        }
+    }
+    else
+    {
+        SetWindowLong(Context.Hwnd, GWL_STYLE, Style | WS_OVERLAPPEDWINDOW);
+        SetWindowPlacement(Context.Hwnd, &LastWindowPlacement);
+        SetWindowPos(Context.Hwnd, 0, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                     SWP_NOOWNERZORDER | SWP_FRAMECHANGED); 
+    }
+}
 
 b32
 aglPlatformContextAlive(void)
@@ -93,6 +123,7 @@ aglPlatformBeginFrame(void)
     RECT WindowRect;
     GetWindowRect(Context.Hwnd, &WindowRect);
     GetCursorPos(&MouseCoords);
+    
     if(!(MouseCoords.x > WindowRect.left && MouseCoords.x < WindowRect.right &&
          MouseCoords.y > WindowRect.top && MouseCoords.y < WindowRect.bottom))
     {
@@ -384,6 +415,7 @@ aglPlatformSetTitle(char *Title)
 #define sign(a) ( ( (a) < 0 )  ?  -1   : ( (a) > 0 ) )
 #define GET_X_LPARAM(lp)                        ((int)(short)LOWORD(lp))
 #define GET_Y_LPARAM(lp)                        ((int)(short)HIWORD(lp))
+
 void
 win32UpdateMouseCoords(LPARAM lParam)
 {
@@ -427,7 +459,7 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             int Direction = sign((int) wParam);
             aglMouseInput.Wheel += Direction;
-            if(aglMouseWheel) aglMouseWheel( ((int)wParam) < 0 ? -1 : 1, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) );
+            if(aglMouseWheelScroll) aglMouseWheelScroll( ((int)wParam) < 0 ? -1 : 1, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) );
             return 0;
         }
         case WM_RBUTTONUP:
@@ -435,22 +467,21 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             win32UpdateMouseCoords(lParam);
             aglMouseInput.Right = GL_FALSE;
-                
-            if(aglMouseUp) aglMouseUp(MK_RBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            if(aglMouseReleased) aglMouseReleased(MK_RBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
             return 0;
         }
         case WM_MBUTTONUP:
         {
             aglMouseInput.Middle = GL_FALSE;
-            //TODO: mbutton function to user
+            if(aglMouseReleased) aglMouseReleased(MK_MBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+
             return 0;
         }
         case WM_LBUTTONUP:
         {
             win32UpdateMouseCoords(lParam);
             aglMouseInput.Left = GL_FALSE;
-            
-            if(aglMouseUp) aglMouseUp(MK_LBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            if(aglMouseReleased) aglMouseReleased(MK_LBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
             return 0;
         }
         case WM_MBUTTONDOWN:
@@ -462,7 +493,7 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             aglMouseInput.Middle = (wParam == MK_MBUTTON);
             aglMouseInput.Right = (wParam == MK_RBUTTON);
             
-            if(aglMouseDown) aglMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            if(aglMousePressed) aglMousePressed(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
             return 0;
         }
         case WM_CLOSE:								// Did We Receive A Close Message?
@@ -471,20 +502,22 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		} return 0;
 		case WM_KEYDOWN:							// Is A Key Being Held Down?
 		{
+            // Temporary quick application shutdown via Escape key.
+            if(wParam == VK_ESCAPE) Running = false;
             KeybInput.Keys[wParam] = 1;
-            //if(aglKeyDown) aglKeyDown(wParam);
+            if(aglKeyPressed) aglKeyPressed(wParam);
 			return 0;								// Jump Back            
 		}
 
 		case WM_KEYUP:								// Has A Key Been Released?
 		{
             KeybInput.Keys[wParam] = 0;
-//            if(aglKeyUp) aglKeyUp(wParam);
+            if(aglKeyReleased) aglKeyReleased(wParam);
 			return 0;								// Jump Back
 		}
 		case WM_SIZE:								// Resize The OpenGL Window
 		{
-            if(aglResizeScene) aglResizeScene(LOWORD(lParam),HIWORD(lParam));
+            aglResizeScene(LOWORD(lParam),HIWORD(lParam));
 			return 0;								// Jump Back
 		}
 	}
@@ -500,7 +533,6 @@ BOOLEAN WINAPI DllMain(HINSTANCE hDllHandle, DWORD nReason, LPVOID Reserved )
         case DLL_PROCESS_ATTACH:
         {
             Context.Instance = hDllHandle;
-            aglAssignGetProcAddress(aglPlatformGetProcAddress);
         } break;
         case DLL_PROCESS_DETACH:
             break;

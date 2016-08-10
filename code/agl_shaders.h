@@ -1,6 +1,72 @@
 #if !defined(AGL_SHADERS_H)
 #define GLSL(source) "#version 330\n" #source
 
+GLint
+aglCompileShader(const char *Source, GLenum Type)
+{
+    GLint Result = glCreateShader(Type);
+    if(Result > 0)
+    {
+        glShaderSource(Result, 1, &Source, 0);
+        glCompileShader(Result);
+
+        GLint Status;
+        glGetShader(Result, GL_COMPILE_STATUS, &Status);
+        if(!Status)
+        {
+            int Length = 0;
+            char Info[4096];
+            glGetShaderInfoLog(Result, 4096, &Length, Info);
+            printf("Shader compile error:\n%s", Info);
+        }
+    }
+    return Result;
+}
+
+void
+aglAttachShaders(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
+{
+    for(int i=0; i < Length;i++)
+    {
+        glAttachShader(ProgramID, ShaderArray[i]);
+    }
+}
+
+void
+aglDetachShaders(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
+{
+    for(int i=0; i < Length;i++)
+    {
+        glDetachShader(ProgramID, ShaderArray[i]);
+        glDeleteShader(ShaderArray[i]);
+    }
+}
+
+b32
+aglLinkProgram(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
+{
+    GLboolean Result = GL_FALSE;
+    if(ShaderArray && Length > 0)
+    {
+        aglAttachShaders(ProgramID, ShaderArray, Length);
+        glLinkProgram(ProgramID);
+        GLint Status;
+        glGetProgram(ProgramID, GL_LINK_STATUS, &Status);
+        if(Status != GL_TRUE)
+        {
+            int Length = 0;
+            char Info[4096];
+            glGetProgramInfoLog(ProgramID, 4096, &Length, Info);
+            printf("%s", Info);
+        } else {       
+            Result = GL_TRUE;
+        }
+    }
+    aglDetachShaders(ProgramID, ShaderArray, Length);
+    return Result;
+}
+
+
 // FRAGMENT SHADERS
 const char *
 AGL_SHADERS_FRAG_1 = GLSL
@@ -98,8 +164,8 @@ AGL_SHADERS_VERT_4 = GLSL
 
         vec3 newPos = vertexPosition;
         void main(){
-            newPos.x += mod(gl_InstanceID, 16.0) * 3;
-            newPos.z += (gl_InstanceID / 16.0) * 3;
+            newPos.x += mod(gl_InstanceID, 3.0) * 3;
+            newPos.z += (gl_InstanceID / 3) * 3;
             gl_Position = matModelViewProj * vec4(newPos, 1);
 
             UV = vertexUV;

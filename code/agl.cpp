@@ -12,7 +12,7 @@ aglOpenGLInfo()
     return Result;
 }
 
-GLboolean
+b32
 aglReadFileDefault(char *Filename, char *Buffer)
 {
     FILE *Handle = fopen(Filename, "rb");
@@ -38,16 +38,15 @@ aglInitGLDefault(void)
 	glClearDepth(1.0f);									// Depth Buffer Setup
 	glEnable(GL_DEPTH_TEST);							// Enables Depth Testing
 	glDepthFunc(GL_LESS);								// The Type Of Depth Testing To Do
-    glEnable( GL_MULTISAMPLE );
-//    glEnable(GL_CULL_FACE);
-    
-	//glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations  
+    glEnable(GL_MULTISAMPLE);
+    glEnable(GL_CULL_FACE);    
+	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations  
 };
 
 GLboolean
 aglLoadOpenGLAPI(void)
 {
-    if(aglGetProcAddress)
+    if(*aglGetProcAddress)
     {
         glDebugMessageCallback             = (PFNGLDEBUGMESSAGECALLBACKPROC)     aglGetProcAddress("glDebugMessageCallback");
         
@@ -100,7 +99,7 @@ aglResizeSceneDefault(int width, int height)
 
 	// Calculate The Aspect Ratio Of The Window
 	//gluPerspective(45.0f,(GLfloat)width/(GLfloat)height,0.1f,100.0f);
-    //glOrtho( -(width * .5f), (width * .5f), -(height * .5f), (height * .5f), -1, 1 );
+    glOrtho( -(width * .5f), (width * .5f), -(height * .5f), (height * .5f), -1, 1 );
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 }
@@ -111,16 +110,11 @@ aglCreateWindow(char *Title, int Width, int Height)
     HGLRC *OpenGLContext = aglPlatformCreateContext(Title, Width, Height);
     if(OpenGLContext && aglLoadOpenGLAPI())
     {
-        if(aglInitGL)
-        {
-            aglInitGL();
-        } else
-        {
-            aglInitGLDefault();
-        }
-       
-        aglAssignReadFile(aglReadFileDefault);
-        aglAssignResizeScene(aglResizeSceneDefault);
+        // Sets up opengl states. Default or user-specified.
+        if(aglInitGL) aglInitGL(); else aglInitGLDefault();
+
+        if(!aglReadFile) aglReadFile = aglReadFileDefault;
+        if(!aglResizeScene) aglResizeScene = aglResizeSceneDefault;
 
         aglUpdate();
         // Current weird workaroung due first SwapBuffer error
@@ -131,13 +125,13 @@ aglCreateWindow(char *Title, int Width, int Height)
     return OpenGLContext;
 }
 
-GLboolean
+b32
 aglCleanUp(void)
 {
     return aglPlatformDestroyContext();
 }
 
-GLboolean
+b32
 aglIsRunning(void)
 {
     GLboolean Result = aglPlatformContextAlive();
@@ -150,83 +144,6 @@ aglUpdate(void)
 {
     aglPlatformUpdateContext();
     aglPlatformEndFrame();
-}
-
-GLint
-aglCompileShader(const char *Source, GLenum Type)
-{
-    GLint Result = glCreateShader(Type);
-    if(Result > 0)
-    {
-        glShaderSource(Result, 1, &Source, 0);
-        glCompileShader(Result);
-
-        GLint Status;
-        glGetShader(Result, GL_COMPILE_STATUS, &Status);
-        if(!Status)
-        {
-            int Length = 0;
-            char Info[4096];
-            glGetShaderInfoLog(Result, 4096, &Length, Info);
-            printf("Shader compile error:\n%s", Info);
-        }
-    }
-    return Result;
-}
-
-GLint
-aglLoadAndCompileShader(char *Filename, GLenum Type)
-{
-    char Buffer[4096];
-    GLint CompiledShader;
-    if(aglReadFile(Filename, Buffer))
-    {
-        CompiledShader = aglCompileShader((const char *) Buffer, Type);
-    }
-    return CompiledShader;
-}
-
-void
-aglAttachShaders(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
-{
-    for(int i=0; i < Length;i++)
-    {
-        glAttachShader(ProgramID, ShaderArray[i]);
-    }
-}
-
-void
-aglDetachShaders(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
-{
-    for(int i=0; i < Length;i++)
-    {
-        glDetachShader(ProgramID, ShaderArray[i]);
-        glDeleteShader(ShaderArray[i]);
-    }
-}
-
-GLboolean
-aglLinkProgram(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
-{
-    GLboolean Result = GL_FALSE;
-    if(ShaderArray && Length > 0)
-    {
-        aglAttachShaders(ProgramID, ShaderArray, Length);
-        glLinkProgram(ProgramID);
-        GLint Status;
-        glGetProgram(ProgramID, GL_LINK_STATUS, &Status);
-        if(Status != GL_TRUE)
-        {
-            int Length = 0;
-            char Info[4096];
-            glGetProgramInfoLog(ProgramID, 4096, &Length, Info);
-            printf("%s", Info);
-        } else {       
-            Result = GL_TRUE;
-        }
-    }
-    aglDetachShaders(ProgramID, ShaderArray, Length);
-    return Result;
 }
 
 void
@@ -247,8 +164,14 @@ aglGetCurrentFPS(void)
     return 1000 / aglPlatformGetMilliSeconds();
 }
 
-GLboolean
+b32
 aglKeyDown(char Key)
 {
     return aglPlatformKeyDown(Key);
+}
+
+void
+aglToggleFullscreen(void)
+{
+    aglPlatformToggleFullscreen();
 }

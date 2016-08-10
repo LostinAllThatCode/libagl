@@ -36,13 +36,13 @@ ParseWavefrontOBJ(FILE *File, char *Directory, void *MemoryArena)
     {
         if(iV == 0)
             int a= 1;
-        ASSERT(
+        aglAssert(
             iV < GET_MAX_ELEMENT_COUNT(VertexBufferSize, sizeof(v3)) ||
             iUV < GET_MAX_ELEMENT_COUNT(VertexBufferSize, sizeof(v2)) ||
             iNormal < GET_MAX_ELEMENT_COUNT(VertexBufferSize, sizeof(v3))
                );
                     
-        ASSERT(
+        aglAssert(
             jV < GET_MAX_ELEMENT_COUNT(IndexBufferSize, sizeof(uint32)) ||
             jUV < GET_MAX_ELEMENT_COUNT(IndexBufferSize, sizeof(uint32)) ||
             jNormal < GET_MAX_ELEMENT_COUNT(IndexBufferSize, sizeof(uint32))

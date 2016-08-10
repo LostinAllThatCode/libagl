@@ -31,7 +31,6 @@ LARGE_INTEGER Freq;
     printf("Section[%s] : %f ms\n", #name, 1000 * ((GLfloat) (name ## End ## .QuadPart - name ## Begin ## .QuadPart) / (GLfloat) Freq.QuadPart))
     
 
-
 // TODO: Make this a vbo and pass it to the shader, cause this is slow AF.
 void
 DrawGrid(u32 Width, u32 Height)
@@ -126,10 +125,13 @@ main(int argc, char **argv)
     
     win32_context *Ctx;
     HGLRC *GLContext;
-    aglAssignResizeScene(ResizeScene);
+    aglResizeScene = ResizeScene;
     if (GLContext = aglCreateWindow("test", GlobalWidth, GlobalHeight))
     {
         Ctx = aglGetWin32Context();
+        RECT ClientArea;        
+        GetClientRect(Ctx->Hwnd, &ClientArea);
+        printf("w:%i, h:%i\n", ClientArea.right - ClientArea.left, ClientArea.bottom - ClientArea.top); 
         
         char WindowTitle[128];
         agl_opengl_info Info = aglOpenGLInfo();
@@ -153,32 +155,31 @@ main(int argc, char **argv)
 
         GLint mvp = glGetUniformLocation(ShaderID, "matModelViewProj");
 
-        BEGIN_TIMED_SECTION(LoadingModel);
         void *TempMemArena = malloc ( LOAD_MODEL_MEM_SIZE );
-        render_object Models[] = { aglCreateRenderTarget(TempMemArena, "models\\stormtrooper\\stormtrooper.obj")};
+        BEGIN_TIMED_SECTION(ReadModelFromFile);
+        render_object Models[] = { aglCreateRenderTarget(TempMemArena, "..\\models\\stormtrooper\\stormtrooper.obj")};
+        END_TIMED_SECTION(ReadModelFromFile);
         free(TempMemArena);
-        END_TIMED_SECTION(LoadingModel);
         
         aglCameraInit(&Camera, V3(0, 5, 15));
-        aglSetFixedFrameRate(60);
-
-
+        //aglSetFixedFrameRate(60);
+        
         while(aglIsRunning())
         {
             // TODO: Move this to the platform layer (win32_agl.cpp) and provide access to it
             sprintf(WindowTitle, "%s, %s, %s - fps: %i, dt: %f", Info.Renderer, Info.Version, Info.ShadingLanguageVersion, aglGetCurrentFPS(), aglGetDelta());
             SetWindowText(Ctx->Hwnd, WindowTitle);
 
+            if(aglKeyDown(VK_F1)) aglSetFixedFrameRate(0);
+            if(aglKeyDown(VK_F2)) aglSetFixedFrameRate(60);
+            if(aglKeyDown('F')) aglToggleFullscreen();
+            
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             BeginScene(&Camera);
             {
-        BEGIN_TIMED_SECTION(GRIDDRAW);
-        DrawGrid(32, 32);
-        END_TIMED_SECTION(GRIDDRAW);
+                DrawGrid(32, 32);
                 glUseProgram(ShaderID);
-                aglDrawRenderBatch(Models, &TranslationMatrix(-3, 0, -3), &View, &Projection, mvp, 3);
-                aglDrawRenderBatch(Models, &TranslationMatrix(-3, 0, 0), &View, &Projection, mvp, 3);
-                aglDrawRenderBatch(Models, &TranslationMatrix(-3, 0, 3), &View, &Projection, mvp, 3);
+                aglDrawRenderBatch(Models, &TranslationMatrix(-3, 0, -3), &View, &Projection, mvp, 9);
             }
             EndScene();
             

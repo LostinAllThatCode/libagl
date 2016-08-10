@@ -1,3 +1,5 @@
+#if defined(AGL_CAMERA_H) || defined(AGL_IMPLEMENTATION)
+
 enum agl_camera_mode
 {
     STATIC, FREE, FIRSTPERSON
@@ -43,26 +45,27 @@ aglCameraInit(agl_camera *Camera, v3 Position = V3(0, 0, 0),
 }
 
 void
-aglCameraUpdate(agl_camera *Camera)
+aglCameraUpdate(agl_camera *Camera, agl_context *Context)
 {
     agl_camera_mode Mode = Camera->Mode;
-    r32 Speed = aglGetDelta() * Camera->Speed;
+    r32 Speed = Context->Delta * Camera->Speed;
     switch(Mode)
     {
         case FREE:
         {
-            if(aglKeyDown('W')) Camera->Position += Camera->Front * Speed;
-            if(aglKeyDown('S')) Camera->Position -= Camera->Front * Speed;
-            if(aglKeyDown('D')) Camera->Position += Camera->Right * Speed;
-            if(aglKeyDown('A')) Camera->Position -= Camera->Right * Speed;
-            if(aglMouseInput.Left)
+            if(aglKeyDown(Context, 'W')) Camera->Position += Camera->Front * Speed;
+            if(aglKeyDown(Context, 'S')) Camera->Position -= Camera->Front * Speed;
+            if(aglKeyDown(Context, 'D')) Camera->Position += Camera->Right * Speed;
+            if(aglKeyDown(Context, 'A')) Camera->Position -= Camera->Right * Speed;
+            if(Context->MouseIO.Left)
             {
-                Camera->Yaw -= aglMouseInput.dX * Camera->Sensitivity;
-                Camera->Pitch -= aglMouseInput.dY * Camera->Sensitivity;
+                Camera->Yaw -= Context->MouseIO.dX * Camera->Sensitivity;
+                Camera->Pitch -= Context->MouseIO.dY * Camera->Sensitivity;
                 Camera->Front = V3(cos(Camera->Pitch) * sin(Camera->Yaw), sin(Camera->Pitch), cos(Camera->Pitch) * cos(Camera->Yaw));
                 Camera->Right = V3(sin(Camera->Yaw - M_PI/2.0f), 0, cos(Camera->Yaw - M_PI/2.0f));
                 Camera->Up = CrossV3(Camera->Right, Camera->Front);
             }
+
         }break;
         case FIRSTPERSON:
         {
@@ -97,3 +100,5 @@ aglCameraView(agl_camera *Camera)
     return Result;
 }
 
+#define AGL_CAMERA_H
+#endif

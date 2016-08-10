@@ -1,4 +1,4 @@
-#if !defined(AGL_MATH_H)
+#if defined(AGL_MATH_H) || defined(AGL_IMPLEMENTATION)
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -731,27 +731,5 @@ LookAtMatrix(v3 Eye, v3 Target, v3 Up)
     return Result;
 }
 
-
-#if 0
-// Angle in Radians
-inline mat4
-RotationMatrix(r32 Angle, v3 A)
-{
-    // Angle = Angle * (PI/180);
-    
-    mat4 Result = Mat4x4(1);
-    Result.R[0][0] = (1-cos(Angle)) * pow(A.x, 2) + cos(Angle);
-    Result.R[0][1] = (1-cos(Angle)) * (A.x * A.y) - (sin(Angle) * A.z);
-    Result.R[0][2] = (1-cos(Angle)) * (A.x * A.z) + (sin(Angle) * A.y);
-    Result.R[1][0] = (1-cos(Angle)) * (A.x * A.y) + (sin(Angle) * A.z);
-    Result.R[1][1] = (1-cos(Angle)) * pow(A.y, 2) + cos(Angle);
-    Result.R[1][2] = (1-cos(Angle)) * (A.y * A.z) - (sin(Angle) * A.x);
-    Result.R[2][0] = (1-cos(Angle)) * (A.x * A.z) - (sin(Angle) * A.y);
-    Result.R[2][1] = (1-cos(Angle)) * (A.y * A.z) + (sin(Angle) * A.x);
-    Result.R[2][2] = (1-cos(Angle)) * pow(A.z, 2) + cos(Angle);
-    Result.R[3][3] = 1;
-    return Result;
-}
-#endif
 #define AGL_MATH_H
 #endif

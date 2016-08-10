@@ -5,7 +5,7 @@
 model_data *
 LoadModel(char *Filename, ModelDataRawType Type, void *MemoryArena)
 {
-    ASSERT(MemoryArena);
+    aglAssert(MemoryArena);
 
     model_data *Result = {};
     
