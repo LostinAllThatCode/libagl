@@ -1,4 +1,4 @@
-#if defined(AGL_MATH_H) || defined(AGL_IMPLEMENTATION)
+#if !defined(AGL_MATH_H)
 
 #define _USE_MATH_DEFINES
 #include <math.h>

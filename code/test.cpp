@@ -1,7 +1,11 @@
 #include "agl.h"
 
-#include "agl_math.h"
-#include "agl_camera.h"
+
+r32 time;
+
+//#include "agl_math.h"
+#include "agl_core3d.h"
+//#include "agl_camera.h"
 #include "agl_shaders.h"
 
 #define GET_MAX_ELEMENT_COUNT(ByteSize, TypeSize) ByteSize / TypeSize
@@ -10,13 +14,13 @@
 #define INDEX_BUFFER_SIZE LOAD_MODEL_MEM_SIZE / 4
 #include "agl_renderer.cpp"
 
-
 agl_context Ctx;
 mat4x4 Projection, View;
 
 void
-DrawGrid(u32 Width, u32 Height)
-{     
+DrawGrid(u32 Width, u32 Height, mat4x4 *P, mat4x4 *V)
+{
+    glUseProgram(0);
     s32 StartX = -(Width / 2);
     s32 EndX   = (Width / 2);
     s32 StartZ = -(Height / 2);
@@ -24,11 +28,11 @@ DrawGrid(u32 Width, u32 Height)
     
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glMultMatrixf(Projection.E);
+    glMultMatrixf(P->E);
     
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glMultMatrixf(View.E);
+    glMultMatrixf(V->E);
 
     glDisable(GL_DEPTH_TEST);
     for(s32 x=StartX; x < EndX; x++)
@@ -84,13 +88,13 @@ EndScene()
 void
 InitGL()
 {
-	glShadeModel(GL_SMOOTH);							// Enable Smooth Shading
+	//glShadeModel(GL_SMOOTH);							// Enable Smooth Shading
 	glClearColor(0.0f, 0.0f, 0.0f, 0.5f);				// Black Background
 	glClearDepth(1.0f);									// Depth Buffer Setup
 	glEnable(GL_DEPTH_TEST);							// Enables Depth Testing
 	glDepthFunc(GL_LESS);								// The Type Of Depth Testing To Do
     glEnable(GL_MULTISAMPLE);
-    glEnable(GL_CULL_FACE);    
+    //glEnable(GL_CULL_FACE);    
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations  
 }
 
@@ -103,26 +107,35 @@ main(int argc, char **argv)
     Ctx = aglCreateWindow();
     InitGL();
 
-    GLint ShaderID = glCreateProgram();
-    GLint Shaders[] = {
-        aglCompileShader(AGL_SHADERS_VERT_4, GL_VERTEX_SHADER),
-        aglCompileShader(AGL_SHADERS_FRAG_3, GL_FRAGMENT_SHADER)
-    };
-    if(!aglLinkProgram(ShaderID, Shaders, sizeof(Shaders) / sizeof(Shaders[0])))
-    {        
-        printf("Error loading built-in shaders\nPress enter to exit");        
-        return -1;
-    }
-    GLint mvp = glGetUniformLocation(ShaderID, "matModelViewProj");
+    agl_drawable Quad = {};
+    Quad.GLRenderMode = GL_TRIANGLES;
+    Quad.Material = aglMaterialDefault();
+    aglGenQuad(&Quad.Mesh, 1);
+    aglGenBuffer(&Quad.Mesh);
+    
+    agl_drawable Light = {};
+    Light.GLRenderMode = GL_TRIANGLES;
+    Light.Material = aglMaterialDefault();
+    Light.Material.Ambient = V3(1,1,1);
+    Light.Material.Diffuse = V3(1,1,1);
+    Light.Material.Specular = V3(1,1,1);
+    aglGenQuad(&Light.Mesh, 1);
+    aglGenBuffer(&Light.Mesh);
 
+    agl_shader *DefShader = aglInitDefaultShader();
+
+    /*
     void *TempMemArena = malloc ( LOAD_MODEL_MEM_SIZE );
     render_object Models[] = { aglCreateRenderTarget(TempMemArena, "..\\models\\stormtrooper\\stormtrooper.obj")};
     free(TempMemArena);
-    
+    */
     aglCameraInit(&Camera, V3(0, 5, 15));
+    Camera.Mode = AGL_CAMERA_FREE;
     aglSetFixedFPS(&Ctx, 120);
+    
     while(aglHandleEvents(&Ctx))
     {
+        time += Ctx.Delta;
         if(aglKeyDown(&Ctx, VK_F1)) aglSetFixedFPS(&Ctx, 120);
         if(aglKeyDown(&Ctx, VK_F2)) aglSetFixedFPS(&Ctx, 0);
         
@@ -130,16 +143,23 @@ main(int argc, char **argv)
         
         sprintf(Title, "%f, %i\n", Ctx.Delta, Ctx.FPS); 
         SetWindowText(Ctx.HWnd, Title);
-        
+
+        /*
         BeginScene(&Camera, &Ctx);
-            DrawGrid(32, 32);
+            DrawGrid(32, 32, &Projection, &View);
             glUseProgram(ShaderID);
-            aglDrawRenderBatch(Models, &TranslationMatrix(-3, 0, -3), &View, &Projection, mvp, 9);
-        EndScene();
+            aglDrawRenderTarget(Models, &IdentityMat4x4(), &View, &Projection, ShaderID); 
+        EndScene();    
+        */
+        aglBeginScene3D(&Ctx, &Camera);
+            DrawGrid(32, 32, &CurrentProjectionMatrix, &CurrentViewMatrix);
+            aglDraw(&Quad, DefShader);
+            aglDraw(&Light, DefShader, MultMat4x4(ScaleMatrix(.25f, .25f, .25f), TranslationMatrix(5.0f, 5+sinf(time/2)*5.0f, -5.f)));
+        aglEndScene3D(&Ctx, &Camera);
         glUseProgram(0);
         aglSwapBuffers(&Ctx);        
     }
-
+/*
     for (int i=0; i < (sizeof(Models) / sizeof(Models[0])); i++)
     {
         if(!aglDeleteRenderTarget(Models + i))
@@ -147,6 +167,12 @@ main(int argc, char **argv)
             printf("Error cleaning up model data and/or opengl resource handles. [%i]\n", i);
         }
     }
-    
+*/
+    aglMeshDelete(&Quad.Mesh);
+    aglMeshDelete(&Light.Mesh);
+    aglDestroyWindow(&Ctx);
     return 0;
 }
+
+// v  -0.544744 2.718269 -0.216881
+// vn -0.575900 -0.554200 -0.600900

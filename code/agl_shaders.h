@@ -66,6 +66,9 @@ aglLinkProgram(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
     return Result;
 }
 
+#define aglCreateShader(ShaderId, ...)                                  \
+    GLint Shaders[] = { __VA_ARGS__ };                                  \
+    if(!aglLinkProgram(ShaderId, Shaders, sizeof(Shaders) / sizeof(Shaders[0]))) return 0; 
 
 // FRAGMENT SHADERS
 const char *
@@ -88,19 +91,57 @@ AGL_SHADERS_FRAG_2 = GLSL
             gl_FragColor = color;
         }
 );
+
 const char *
 AGL_SHADERS_FRAG_3 = GLSL
     (
+        struct agl_material
+        {
+            vec3  ambient;
+            vec3  specular;
+            vec3  diffuse;
+            float shininess;
+        };
+        
+        struct agl_light
+        {
+            vec3 position;
+            vec3 ambient;
+            vec3 diffuse;
+            vec3 specular;
+        };
+        
+        uniform sampler2D texture2D;
+        uniform agl_material material;
+        uniform agl_light light;
+        uniform vec3 viewPos;
+
+        in vec3 FragPos;
         in vec2 UV;
-
-        out vec3 color;
-
-        uniform sampler2D myTextureSampler;
+        in vec3 Normal;
+        
+        out vec4 color;
 
         void main(){
-                color = texture( myTextureSampler, UV ).rgb;
+            // Ambient
+            vec3 ambient = light.ambient * material.ambient;
+
+            // Diffuse
+            vec3 norm = normalize(Normal);
+            vec3 lightDir = normalize(light.position - FragPos);
+            float diff = max(dot(norm, lightDir), 0.0);
+            vec3 diffuse = light.diffuse * (diff * material.diffuse);
+
+            // Specular
+            vec3 viewDir = normalize(viewPos - FragPos);
+            vec3 reflectDir = reflect(-lightDir, norm);  
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+            vec3 specular = light.specular * (spec * material.specular);
+            
+            //color = texture( texture2D, UV ).rgb * material.diffuse;
+            color = vec4(ambient + diffuse + specular, 1);// * texture(texture2D, UV);
         }
-);
+     );
 
 // VERTEX SHADERS
 const char *
@@ -155,21 +196,20 @@ AGL_SHADERS_VERT_4 = GLSL
         layout(location = 2) in vec3 vertexNormal;
         layout(location = 3) in vec3 vertexColor;
 
-        uniform mat4 matModelViewProj;
-        uniform mat4 matModelView;
-        uniform mat4 matInverse;
+        uniform mat4 matrixModelViewProj;
+        uniform mat4 matrixModel;
+        uniform mat4 matrixView;
+        uniform mat4 matrixInverse;
 
+        out vec3 FragPos;
         out vec2 UV;
         out vec3 Normal;
 
-        vec3 newPos = vertexPosition;
         void main(){
-            newPos.x += mod(gl_InstanceID, 3.0) * 3;
-            newPos.z += (gl_InstanceID / 3) * 3;
-            gl_Position = matModelViewProj * vec4(newPos, 1);
-
+            gl_Position = matrixModelViewProj * vec4(vertexPosition, 1);
             UV = vertexUV;
             Normal = vertexNormal;
+            FragPos = vec3(matrixModel * vec4(vertexPosition, 1));
         }
      );
 
@@ -180,20 +220,16 @@ AGL_16x16BATCHDRAW_VS = GLSL
         layout(location = 1) in vec2 vertexUV;
         layout(location = 2) in vec3 vertexNormal;
         layout(location = 3) in vec3 vertexColor;
-
-        uniform mat4 matModelViewProj;
-        uniform mat4 matModelView;
-        uniform mat4 matInverse;
+        
+        uniform mat4 matrixModelViewProj;
+        uniform mat4 matrixModelView;
+        uniform mat4 matrixInverse;
 
         out vec2 UV;
         out vec3 Normal;
 
-        vec3 newPos = vertexPosition;
         void main(){
-            newPos.x += mod(gl_InstanceID, 16.0) * 3;
-            newPos.z += (gl_InstanceID / 16.0) * 3;
-            gl_Position = matModelViewProj * vec4(newPos, 1);
-
+            gl_Position = matrixModelViewProj * vec4(newPos, 1);
             UV = vertexUV;
             Normal = vertexNormal;
         }

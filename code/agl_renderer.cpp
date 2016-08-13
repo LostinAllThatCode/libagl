@@ -85,7 +85,7 @@ aglDeleteRenderTarget(render_object *Target)
         {
             if(Target->Model->Materials[k].TextureID > 0)
             {
-                printf("    Texture: %i, 0x%p", Target->Model->Materials[k].TextureID, &Target->Model->Materials[k].TextureID);
+                printf("    TEX: %i, 0x%p", Target->Model->Materials[k].TextureID, &Target->Model->Materials[k].TextureID);
                 glDeleteTextures(1, &Target->Model->Materials[k].TextureID);
                 if(glGetError() != GL_NO_ERROR)
                 {
@@ -102,7 +102,7 @@ aglDeleteRenderTarget(render_object *Target)
 
 // NOTE: Temporary matrix parameters should get moved to a general way of handling matrices
 void
-aglDrawRenderTarget(render_object *Target, mat4x4 *Transform, mat4x4 *View, mat4x4 *Projection, u32 Uniform)
+aglDrawRenderTarget(render_object *Target, mat4x4 *Transform, mat4x4 *View, mat4x4 *Projection, u32 ShaderID)
 {
     if(Target->Model)
     {
@@ -127,7 +127,8 @@ aglDrawRenderTarget(render_object *Target, mat4x4 *Transform, mat4x4 *View, mat4
             glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(*Model->Normals), 0);
             glEnableVertexAttribArray(2);
         }
-        
+
+        u32 Uniform = glGetUniformLocation(ShaderID, "matModelViewProj");
 
         if(Model->GroupCount > 0)
         {
@@ -142,7 +143,8 @@ aglDrawRenderTarget(render_object *Target, mat4x4 *Transform, mat4x4 *View, mat4
 
                 mat4x4 Result = MultMat4x4(*Transform, *View);
                 Result = MultMat4x4(Result, *Projection);
-                glUniformMatrix4fv(Uniform, 1, GL_FALSE, (const float *) Result.E);
+                
+                //glUniformMatrix4fv(Uniform, 1, GL_FALSE, (const float *) Result.E);
                 glDrawArrays(Target->glRenderType, GroupBegin, GroupEnd - GroupBegin);
             }
         } else glDrawArrays(GL_TRIANGLES, 0, Model->VertexCount);
@@ -195,7 +197,7 @@ aglDrawRenderBatch(render_object *Target, mat4x4 *Transform, mat4x4 *View, mat4x
 
                 mat4x4 Result = MultMat4x4(*Transform, *View);
                 Result = MultMat4x4(Result, *Projection);
-                glUniformMatrix4fv(Uniform, 1, GL_FALSE, (const float *) Result.E);
+                glUniformMatrix4f(Uniform, 1, GL_FALSE, (const float *) Result.E);
                 glDrawArraysInstanced(Target->glRenderType, GroupBegin, GroupEnd - GroupBegin, Count);
             }
         } else glDrawArrays(GL_TRIANGLES, 0, Model->VertexCount);

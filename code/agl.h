@@ -4,48 +4,55 @@
 
 #if !defined(AGL_H)
 
-#include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <limits.h>
-#include <float.h>
-
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-typedef int32 bool32;
-
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-
-typedef intptr_t intptr;
-typedef uintptr_t uintptr;
-
-typedef size_t memory_index;
+#ifndef AGL_TYPES
+    #include <stdio.h>
+    #include <stdint.h>
+    #include <stddef.h>
+    #include <limits.h>
+    #include <float.h>
     
-typedef float real32;
-typedef double real64;
+    typedef int8_t int8;
+    typedef int16_t int16;
+    typedef int32_t int32;
+    typedef int64_t int64;
+    typedef int32 bool32;
     
-typedef int8 s8;
-typedef int8 s08;
-typedef int16 s16;
-typedef int32 s32;
-typedef int64 s64;
-typedef bool32 b32;
+    typedef uint8_t uint8;
+    typedef uint16_t uint16;
+    typedef uint32_t uint32;
+    typedef uint64_t uint64;
+    
+    typedef intptr_t intptr;
+    typedef uintptr_t uintptr;
+    
+    typedef size_t memory_index;
+        
+    typedef float real32;
+    typedef double real64;
+        
+    typedef int8 s8;
+    typedef int8 s08;
+    typedef int16 s16;
+    typedef int32 s32;
+    typedef int64 s64;
+    typedef bool32 b32;
+    
+    typedef uint8 u8;
+    typedef uint8 u08;
+    typedef uint16 u16;
+    typedef uint32 u32;
+    typedef uint64 u64;
+    
+    typedef real32 r32;
+    typedef real64 r64;
+    #define AGL_TYPES
+#endif
 
-typedef uint8 u8;
-typedef uint8 u08;
-typedef uint16 u16;
-typedef uint32 u32;
-typedef uint64 u64;
-
-typedef real32 r32;
-typedef real64 r64;
-
-#define aglAssert(Expression) if(!(Expression)) {*(int *)0 = 0;}
+#ifndef aglAssert
+    #include <assert.h>
+    #define aglAssert(Condition) assert(Condition)
+#endif
+//     #define aglAssert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 
 #ifdef AGL_EXTERN
     #define AGLDEF extern
@@ -100,7 +107,9 @@ extern "C" {
         PFNGLUSEPROGRAMPROC                 glUseProgram;
         PFNGLACTIVETEXTUREPROC              glActiveTexture;
         PFNGLGETUNIFORMLOCATIONPROC         glGetUniformLocation;
-        PFNGLUNIFORMMATRIX4FVPROC           glUniformMatrix4fv;
+        PFNGLUNIFORMMATRIX4FVPROC           glUniformMatrix4f;
+        PFNGLUNIFORM3FPROC                  glUniform3f;
+        PFNGLUNIFORM1FPROC                  glUniform1f;
         PFNGLGENBUFFERSPROC                 glGenBuffers;
         PFNGLBINDBUFFERPROC                 glBindBuffer;
         PFNGLDELETEBUFFERSPROC              glDeleteBuffers;
@@ -109,7 +118,7 @@ extern "C" {
         PFNGLBINDVERTEXARRAYPROC            glBindVertexArray;
         PFNGLENABLEVERTEXATTRIBARRAYPROC    glEnableVertexAttribArray;
         PFNGLVERTEXATTRIBPOINTERPROC        glVertexAttribPointer;
-        PFNGLDISABLEVERTEXATTRIBARRAYPROC    glDisableVertexAttribArray;
+        PFNGLDISABLEVERTEXATTRIBARRAYPROC   glDisableVertexAttribArray;
         PFNGLVERTEXATTRIBDIVISORPROC        glVertexAttribDivisor;
         PFNGLDRAWARRAYSINSTANCEDPROC        glDrawArraysInstanced;
     #endif
@@ -416,7 +425,6 @@ aglPlatformHandleEvents(agl_context *Context)
             case WM_QUIT:
             {
                 Context->Running = false;
-                aglPlatformDestroyWindow(Context);
             }break;
             case WM_KEYDOWN:
             {
@@ -468,7 +476,7 @@ aglPlatformHandleEvents(agl_context *Context)
     }
 }
 
-AGLDEF void aglPlatformSleep(agl_context *Context, r32 Time) { if(Time > 0) Sleep(Time); }
+AGLDEF void aglPlatformSleep(agl_context *Context, s32 Time) { if(Time > 0) Sleep(Time); }
 AGLDEF void aglPlatformBeginFrame(agl_context *Context) { QueryPerformanceCounter(&Context->FrameBegin); }
 AGLDEF void aglPlatformEndFrame(agl_context *Context) {
     QueryPerformanceCounter(&Context->FrameEnd);
@@ -521,8 +529,9 @@ aglInitModernGLImpl()
         glActiveTexture                    = (PFNGLACTIVETEXTUREPROC)            aglGetProcAddress("glActiveTexture");
 
         glGetUniformLocation               = (PFNGLGETUNIFORMLOCATIONPROC)       aglGetProcAddress("glGetUniformLocation");
-        glUniformMatrix4fv                 = (PFNGLUNIFORMMATRIX4FVPROC)       aglGetProcAddress("glUniformMatrix4fv");
-
+        glUniformMatrix4f                  = (PFNGLUNIFORMMATRIX4FVPROC)         aglGetProcAddress("glUniformMatrix4fv");
+        glUniform3f                        = (PFNGLUNIFORM3FPROC)                aglGetProcAddress("glUniform3f");
+        glUniform1f                        = (PFNGLUNIFORM1FPROC)                aglGetProcAddress("glUniform1f");
         glGenBuffers                       = (PFNGLGENBUFFERSPROC)               aglGetProcAddress("glGenBuffers");
         glBindBuffer                       = (PFNGLBINDBUFFERPROC)               aglGetProcAddress("glBindBuffer");
         glDeleteBuffers                    = (PFNGLDELETEBUFFERSPROC)            aglGetProcAddress("glDeleteBuffers");
@@ -590,18 +599,19 @@ aglKeyUp(agl_context *Context, char Key)
 void
 aglSwapBuffers(agl_context *Context)
 {
+    aglPlatformSwapBuffers(Context);
     aglPlatformEndFrame(Context);
     if(Context->TargetFPS > 0)
     {
         r32 TargetFrameTime = 1.0f / Context->TargetFPS;
         if(Context->Delta < TargetFrameTime)
         {
-            aglPlatformSleep(Context, (TargetFrameTime - Context->Delta) * 1000);
+            aglPlatformSleep(Context, (s32) ((TargetFrameTime - Context->Delta) * 1000));
             aglPlatformEndFrame(Context);
+            if(Context->Delta > TargetFrameTime) Context->Delta = TargetFrameTime;
         }
     }
     Context->FPS = (u32) (1.0f /Context->Delta);
-    aglPlatformSwapBuffers(Context);
     glGetError();
 }
 

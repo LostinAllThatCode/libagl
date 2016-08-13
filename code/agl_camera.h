@@ -1,4 +1,4 @@
-#if defined(AGL_CAMERA_H) || defined(AGL_IMPLEMENTATION)
+#if !defined(AGL_CAMERA_H)
 
 enum agl_camera_mode
 {
