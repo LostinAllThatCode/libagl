@@ -26,6 +26,13 @@ V2(r32 x, r32 y)
 }
 
 inline v2
+V2(r32 xy)
+{
+    v2 Result = { xy, xy };
+    return Result;
+}
+
+inline v2
 V2i(s32 x, s32 y)
 {
     v2 Result = { (r32) x, (r32) y };
@@ -135,6 +142,13 @@ inline v3
 V3(v2 xy, r32 z)
 {
     v3 Result = { xy.x, xy.y, z };
+    return Result;
+}
+
+inline v3
+V3(r32 xyz)
+{
+    v3 Result = { xyz, xyz, xyz };
     return Result;
 }
 

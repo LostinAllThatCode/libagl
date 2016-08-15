@@ -4,7 +4,7 @@
 
 #if !defined(AGL_H)
 
-#ifndef AGL_TYPES
+#if !defined(AGL_TYPES)
     #include <stdio.h>
     #include <stdint.h>
     #include <stddef.h>
@@ -48,217 +48,485 @@
     #define AGL_TYPES
 #endif
 
-#ifndef aglAssert
-    #include <assert.h>
-    #define aglAssert(Condition) assert(Condition)
+#if !defined(aglAssert)
+    #define aglAssert(Condition)
 #endif
 //     #define aglAssert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 
-#ifdef AGL_EXTERN
-    #define AGLDEF extern
+#if defined(AGL_EXTERN)
+    #if defined(__cplusplus)
+        #define AGLDEF extern "C"
+    #else
+        #define AGLDEF extern
+    #endif
 #else
+    #define AGL_IMPLEMENTATION
     #define AGLDEF static
 #endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
     
-    #if _WIN32
-        #ifndef AGL_WND_CLASS_NAME
-            #define AGL_WND_CLASS_NAME "win32_agl_window_class"
-        #endif
-    
-        #include <windows.h>		// Header File For Windows
-    
-        #define WGL_CONTEXT_MAJOR_VERSION_ARB              0x2091
-        #define WGL_CONTEXT_MINOR_VERSION_ARB              0x2092
-        #define WGL_CONTEXT_LAYER_PLANE_ARB                0x2093
-        #define WGL_CONTEXT_FLAGS_ARB                      0x2094
-        #define WGL_CONTEXT_PROFILE_MASK_ARB               0x9126
-        #define WGL_CONTEXT_DEBUG_BIT_ARB                  0x0001
-        #define WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB     0x0002
-        #define WGL_CONTEXT_CORE_PROFILE_BIT_ARB           0x00000001
-        #define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB  0x00000002
-        
-        typedef HGLRC wgl_create_context_attribts_arb(HDC hDC, HGLRC hshareContext, const int *attribList);
-
-    #else
-    
-    #endif
-    
-    #include <GL\GL.h>
-    #include "glcorearb.h"
-    
-    #ifndef AGL_NO_MODERNGL
-        PFNGLDEBUGMESSAGECALLBACKPROC       glDebugMessageCallback;
-        PFNGLCREATESHADERPROC               glCreateShader;
-        PFNGLDELETESHADERPROC               glDeleteShader;
-        PFNGLSHADERSOURCEPROC               glShaderSource;
-        PFNGLCOMPILESHADERPROC              glCompileShader;
-        PFNGLGETSHADERIVPROC                glGetShader;
-        PFNGLGETSHADERINFOLOGPROC           glGetShaderInfoLog;
-        PFNGLCREATEPROGRAMPROC              glCreateProgram;
-        PFNGLGETPROGRAMIVPROC               glGetProgram;
-        PFNGLGETPROGRAMINFOLOGPROC          glGetProgramInfoLog;
-        PFNGLATTACHSHADERPROC               glAttachShader;
-        PFNGLDETACHSHADERPROC               glDetachShader;
-        PFNGLLINKPROGRAMPROC                glLinkProgram;
-        PFNGLUSEPROGRAMPROC                 glUseProgram;
-        PFNGLACTIVETEXTUREPROC              glActiveTexture;
-        PFNGLGETUNIFORMLOCATIONPROC         glGetUniformLocation;
-        PFNGLUNIFORMMATRIX4FVPROC           glUniformMatrix4f;
-        PFNGLUNIFORM3FPROC                  glUniform3f;
-        PFNGLUNIFORM1FPROC                  glUniform1f;
-        PFNGLGENBUFFERSPROC                 glGenBuffers;
-        PFNGLBINDBUFFERPROC                 glBindBuffer;
-        PFNGLDELETEBUFFERSPROC              glDeleteBuffers;
-        PFNGLBUFFERDATAPROC                 glBufferData;
-        PFNGLGENVERTEXARRAYSPROC            glGenVertexArrays;
-        PFNGLBINDVERTEXARRAYPROC            glBindVertexArray;
-        PFNGLENABLEVERTEXATTRIBARRAYPROC    glEnableVertexAttribArray;
-        PFNGLVERTEXATTRIBPOINTERPROC        glVertexAttribPointer;
-        PFNGLDISABLEVERTEXATTRIBARRAYPROC   glDisableVertexAttribArray;
-        PFNGLVERTEXATTRIBDIVISORPROC        glVertexAttribDivisor;
-        PFNGLDRAWARRAYSINSTANCEDPROC        glDrawArraysInstanced;
-    #endif
-
-    typedef struct 
-    {
-        u8 Keys[256];
-    } agl_keyboad_io;
-    
-    typedef struct
-    {
-        s32 X, Y, dX, dY, Wheel, dWheel;
-        b32 Left, Middle, Right;
-    } agl_mouse_io;
-
-    typedef struct 
-    {
-        char *Vendor;
-        char *Renderer;
-        char *Version;
-        char *ShadingLanguageVersion;
-        char *Extensions;
-    } agl_opengl_info;
-    
-    typedef struct
-    {
-        b32 Running;
-        r32 Delta;
-        s32 Width;
-        s32 Height;
-        s32 FPS;
-        s32 TargetFPS;
-        HGLRC GLContext;
-       
-        agl_opengl_info GLInfo;
-        agl_keyboad_io KeyboardIO;
-        agl_mouse_io MouseIO;
-
-        //NOTE: Platform dependent variables
-        #if _WIN32
-            HWND HWnd;
-            HDC DC;
-            WINDOWPLACEMENT Placement; // NOTE: Necessary for fullScreen feature!
-            LARGE_INTEGER FrameBegin, FrameEnd, Frequency;
-        #elif // Other platform implementation
-         
-        #endif
-    } agl_context;
-
-    // NOTE: Platform specific functions. Implement these yourself if you want to. 
-    //       Define AGL_EXTERN beforce including this file. Ex.: #define AGL_EXTERN
-    AGLDEF void* aglPlatformGetProcAddress(char *Function);
-    AGLDEF b32   aglPlatformCreateWindow(agl_context *Context, char *Title);
-    AGLDEF void  aglPlatformDestroyWindow(agl_context *Context);
-    AGLDEF void  aglPlatformHandleEvents(agl_context *Context);
-    AGLDEF void  aglPlatformSetFixedFramerate(agl_context *Context, s32 FPS);
-    AGLDEF void  aglPlatformBeginFrame(agl_context *Context);
-    AGLDEF void  aglPlatformEndFrame(agl_context *Context);
-    AGLDEF void  aglPlatformSleep(agl_context *Context, s32 Time);
-    AGLDEF void  aglPlatformSwapBuffers(agl_context *Context);
-    
-#ifdef __cplusplus
-}
-#endif
-
-#ifndef AGL_EXTERN
-#define AGL_IMPLEMENTATION
 #if _WIN32
+    #include <windows.h>		// Header File For Windows
+    #include <windowsx.h>
+    #if !defined(AGL_WND_CLASS_NAME)
+        #define AGL_WND_CLASS_NAME "win32_agl_window_class"
+    #endif
+#endif
 
-AGLDEF void *
+#include <GL\GL.h>
+#if !defined(AGL_NO_MODERNGL)
+    #include "glcorearb.h"
+    PFNGLDEBUGMESSAGECALLBACKPROC       glDebugMessageCallback;
+    PFNGLCREATESHADERPROC               glCreateShader;
+    PFNGLDELETESHADERPROC               glDeleteShader;
+    PFNGLSHADERSOURCEPROC               glShaderSource;
+    PFNGLCOMPILESHADERPROC              glCompileShader;
+    PFNGLGETSHADERIVPROC                glGetShader;
+    PFNGLGETSHADERINFOLOGPROC           glGetShaderInfoLog;
+    PFNGLCREATEPROGRAMPROC              glCreateProgram;
+    PFNGLGETPROGRAMIVPROC               glGetProgram;
+    PFNGLGETPROGRAMINFOLOGPROC          glGetProgramInfoLog;
+    PFNGLATTACHSHADERPROC               glAttachShader;
+    PFNGLDETACHSHADERPROC               glDetachShader;
+    PFNGLLINKPROGRAMPROC                glLinkProgram;
+    PFNGLUSEPROGRAMPROC                 glUseProgram;
+    PFNGLACTIVETEXTUREPROC              glActiveTexture;
+    PFNGLGETUNIFORMLOCATIONPROC         glGetUniformLocation;
+    PFNGLUNIFORMMATRIX4FVPROC           glUniformMatrix4f;
+    PFNGLUNIFORM3FPROC                  glUniform3f;
+    PFNGLUNIFORM1FPROC                  glUniform1f;
+    PFNGLGENBUFFERSPROC                 glGenBuffers;
+    PFNGLBINDBUFFERPROC                 glBindBuffer;
+    PFNGLDELETEBUFFERSPROC              glDeleteBuffers;
+    PFNGLBUFFERDATAPROC                 glBufferData;
+    PFNGLGENVERTEXARRAYSPROC            glGenVertexArrays;
+    PFNGLBINDVERTEXARRAYPROC            glBindVertexArray;
+    PFNGLENABLEVERTEXATTRIBARRAYPROC    glEnableVertexAttribArray;
+    PFNGLVERTEXATTRIBPOINTERPROC        glVertexAttribPointer;
+    PFNGLDISABLEVERTEXATTRIBARRAYPROC   glDisableVertexAttribArray;
+    PFNGLVERTEXATTRIBDIVISORPROC        glVertexAttribDivisor;
+    PFNGLDRAWARRAYSINSTANCEDPROC        glDrawArraysInstanced;
+    
+    PFNGLSAMPLECOVERAGEPROC             glSampleCoverage;
+#endif
+
+typedef struct
+{
+    s32 Count;
+    b32 EndedDown;
+} agl_key_state;
+    
+typedef struct 
+{
+    agl_key_state Keys[256];
+} agl_keyboad_input;
+    
+typedef struct
+{
+    s32 realX, realY;
+    s32 X, Y, dX, dY, Wheel, dWheel;
+    b32 Left, Middle, Right;
+    b32 Locked;
+} agl_mouse_input;
+
+typedef struct 
+{
+    char *Vendor;
+    char *Renderer;
+    char *Version;
+    char *ShadingLanguageVersion;
+    char *Extensions;
+} agl_opengl_info;
+   
+typedef struct
+{
+    b32 Running;
+    b32 Active;
+    s32 Width;
+    s32 Height;
+    s32 FPS;
+    s32 TargetFPS;
+    r32 Delta;
+    r32 Time;
+    HGLRC GLContext;
+    b32 MultisampleSupported;
+    s32 MultisampleFormat;
+       
+    agl_opengl_info GLInfo;
+    agl_keyboad_input KeyboardInput;
+    agl_mouse_input MouseInput;
+
+//NOTE: Platform dependent variables
+#if defined(_WIN32)
+    HWND HWnd;
+    HDC DC;
+    WINDOWPLACEMENT Placement; // NOTE: Necessary for fullScreen feature!
+    LARGE_INTEGER FrameBegin, FrameEnd, Frequency;
+#elif // Other platform implementation
+         
+#endif
+} agl_context;
+agl_context __agl_Context; // global context to get access to static functions like win32 messageproc    
+
+// NOTE: Platform specific functions. Implement these yourself if you want to. 
+//       Define AGL_EXTERN beforce including this file. Ex.: #define AGL_EXTERN
+//       When implementing your own platform function make sure you always apply changes
+//       to __agl_Context, otherwise this api won't do anything.
+AGLDEF void* aglPlatformGetProcAddress(char *Function);
+AGLDEF b32   aglPlatformCreateWindow(char *Title);
+AGLDEF void  aglPlatformCloseWindow();
+AGLDEF void  aglPlatformDestroyWindow();
+AGLDEF void  aglPlatformHandleEvents();
+AGLDEF void  aglPlatformSetFixedFramerate(s32 FPS);
+AGLDEF void  aglPlatformBeginFrame();
+AGLDEF void  aglPlatformEndFrame();
+AGLDEF void  aglPlatformSleep(s32 Time);
+AGLDEF void  aglPlatformSwapBuffers();
+AGLDEF void  aglPlatformToggleFullscreen();
+AGLDEF void  aglPlatformSetWindowTitle(char *Title);
+AGLDEF b32   aglPlatformIsActive();
+
+typedef void (APIENTRYP agl_key_down_callback_proc) (char Key);
+agl_key_down_callback_proc aglKeyDownCallback;
+#define aglCallbackKeyDown(f) aglKeyDownCallback = f
+
+typedef void (APIENTRYP agl_key_up_callback_proc) (char Key);
+agl_key_up_callback_proc aglKeyUpCallback;
+#define aglCallbackKeyUp(f) aglKeyUpCallback = f
+
+
+
+
+#if defined(_WIN32) && defined(AGL_IMPLEMENTATION)
+#include "wglext.h"
+
+void *
 aglPlatformGetProcAddress(char *Function)
 {
     return wglGetProcAddress(Function);
 }
 
-AGLDEF LRESULT CALLBACK
+void
+aglPlatformToggleFullscreen()
+{
+    DWORD Style = GetWindowLong(__agl_Context.HWnd, GWL_STYLE);
+    if(Style & WS_OVERLAPPEDWINDOW)
+    {
+        MONITORINFO MonitorInfo = {sizeof(MonitorInfo)};
+        if(GetWindowPlacement(__agl_Context.HWnd, &__agl_Context.Placement) &&
+           GetMonitorInfo(MonitorFromWindow(__agl_Context.HWnd, MONITOR_DEFAULTTOPRIMARY), &MonitorInfo))
+        {
+            SetWindowLong(__agl_Context.HWnd, GWL_STYLE, Style & ~WS_OVERLAPPEDWINDOW);
+            SetWindowPos(__agl_Context.HWnd, HWND_TOP,
+                         MonitorInfo.rcMonitor.left, MonitorInfo.rcMonitor.top,
+                         MonitorInfo.rcMonitor.right - MonitorInfo.rcMonitor.left,
+                         MonitorInfo.rcMonitor.bottom - MonitorInfo.rcMonitor.top,
+                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        }
+
+    }
+    else
+    {
+        SetWindowLong(__agl_Context.HWnd, GWL_STYLE, Style | WS_OVERLAPPEDWINDOW);
+        SetWindowPlacement(__agl_Context.HWnd, &__agl_Context.Placement);
+        SetWindowPos(__agl_Context.HWnd, 0, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                     SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
+}
+
+void
+aglPlatformHandleEvents()
+{
+    if(!IsWindow(__agl_Context.HWnd))
+    {
+        __agl_Context.Running = false;
+        timeEndPeriod(1);
+    }
+    
+    MSG msg;
+    while(PeekMessage(&msg, 0, 0, 0, PM_REMOVE) && __agl_Context.Running)
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+}
+
+LRESULT CALLBACK
 WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)									// Check For Windows Messages
     {
         case WM_ACTIVATE:							// Watch For Window Activate Message
         {
-            if (!HIWORD(wParam))					// Check Minimization State
+            // Kind of confused by this. I don't know why its swapped.
+            if(LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE)
             {
-                //Running = GL_TRUE;						// Program Is Active
-            }
+                __agl_Context.Active = false;
+            } else if(LOWORD(wParam) == WA_INACTIVE)
+            {
+                __agl_Context.Active = true;
+            }            
             return 0;								// Return To The Message Loop
         }
         case WM_SYSCOMMAND:							// Intercept System Commands
         {
             switch (wParam)							// Check System Calls
             {
+                case SC_KEYMENU:
                 case SC_SCREENSAVE:					// Screensaver Trying To Start?
                 case SC_MONITORPOWER:				// Monitor Trying To Enter Powersave?
                     return 0;							// Prevent From Happening
             }
             break;									// Exit
+            return 0;
         }
         case WM_DESTROY:
         {
             PostQuitMessage(0);
             return 0;
         }break;
+        case WM_KEYDOWN:
+        {
+            u8 Key = (u8) wParam;
+            agl_key_state *State = __agl_Context.KeyboardInput.Keys + Key;
+            State->Count++;
+            State->EndedDown = false;
+            if(aglKeyDownCallback) aglKeyDownCallback(Key);
+            return 0;
+        }break;
+        case WM_KEYUP:								// Has A Key Been Released?
+        {
+            u8 Key = (u8) wParam;
+            agl_key_state *State = __agl_Context.KeyboardInput.Keys + Key;
+            State->EndedDown = true;
+            if(aglKeyUpCallback) aglKeyUpCallback(Key);
+            return 0;
+        }break;
+        case WM_MOUSEMOVE:
+        {                        
+            s32 X = GET_X_LPARAM(lParam);
+            s32 Y = GET_Y_LPARAM(lParam);
+            __agl_Context.MouseInput.dX = X - __agl_Context.MouseInput.X;
+            __agl_Context.MouseInput.dY = Y - __agl_Context.MouseInput.Y;
+            __agl_Context.MouseInput.X = X;
+            __agl_Context.MouseInput.Y = Y;
+            return 0;
+        }break;
+        case WM_RBUTTONUP:
+        {
+            ReleaseCapture();
+            __agl_Context.MouseInput.Right = false;
+            //if(aglMouseReleased) aglMouseReleased(MK_RBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            return 0;
+        }break;
+        case WM_MBUTTONUP:
+        {            
+            ReleaseCapture();
+            __agl_Context.MouseInput.Middle = false;
+            //if(aglMouseReleased) aglMouseReleased(MK_MBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            return 0;
+        }break;
+        case WM_LBUTTONUP:
+        {
+            ReleaseCapture();
+            __agl_Context.MouseInput.Left = false;
+            //if(aglMouseReleased) aglMouseReleased(MK_LBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            return 0;
+        }break;
+        case WM_MBUTTONDOWN:
+        case WM_RBUTTONDOWN:
+        case WM_LBUTTONDOWN:
+        {
+            SetCapture(__agl_Context.HWnd);
+            __agl_Context.MouseInput.Left = (wParam == MK_LBUTTON || wParam == (MK_LBUTTON | MK_RBUTTON));
+            __agl_Context.MouseInput.Right = (wParam == MK_RBUTTON || wParam == (MK_LBUTTON | MK_RBUTTON));
+            __agl_Context.MouseInput.Middle = (wParam == MK_MBUTTON);
+            //if(aglMousePressed) aglMousePressed(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            return 0;
+        }break;
+        case WM_SIZE:
+        {
+            __agl_Context.Width = LOWORD(lParam);
+            __agl_Context.Height = HIWORD(lParam);
+            return 0;
+        }break;
     }
 	return DefWindowProc(hWnd,uMsg,wParam,lParam);
 }
 
-AGLDEF void
-aglPlatformDestroyWindow(agl_context *Context)
+void
+aglPlatformSetCursor(b32 Show)
 {
-    timeEndPeriod(1);
-    if (Context->GLContext)											// Do We Have A Rendering Context?
+    CURSORINFO CursorInfo;
+    CursorInfo.cbSize = sizeof(CURSORINFO);
+    GetCursorInfo(&CursorInfo);
+    if(CursorInfo.flags == 0 && Show)
+    {
+        ShowCursor(true);
+        __agl_Context.MouseInput.Locked = false;
+//      ClipCursor(0);
+    }
+    else if(CursorInfo.flags == CURSOR_SHOWING && !Show)
+    {
+        ShowCursor(false);
+        __agl_Context.MouseInput.Locked = true;
+#if 0
+
+        ClipCursor(&WindowRect);
+#endif
+    }
+}
+
+void
+aglPlatformDestroyWindow()
+{
+    DestroyWindow(__agl_Context.HWnd);
+    
+    if(!UnregisterClass(AGL_WND_CLASS_NAME, GetModuleHandle(0)))
+    {
+        MessageBox(NULL,"Unregister failed..","SHUTDOWN ERROR",MB_OK | MB_ICONINFORMATION);  
+    }   
+    
+    if (__agl_Context.GLContext)											// Do We Have A Rendering Context?
 	{
-		if (!wglMakeCurrent(Context->DC, NULL))					// Are We Able To Release The DC And RC Contexts?
+		if (!wglMakeCurrent(__agl_Context.DC, NULL))					// Are We Able To Release The DC And RC Contexts?
 		{
 			MessageBox(NULL,"Release Of DC And RC Failed.","SHUTDOWN ERROR",MB_OK | MB_ICONINFORMATION);            
 		}
         
-		if (!wglDeleteContext(Context->GLContext))						// Are We Able To Delete The RC?
+		if (!wglDeleteContext(__agl_Context.GLContext))						// Are We Able To Delete The RC?
 		{
 			MessageBox(NULL,"Release Rendering Context Failed.","SHUTDOWN ERROR",MB_OK | MB_ICONINFORMATION);
 		}
         
-        Context->GLContext = 0;
+    }
+    __agl_Context.GLContext = 0;
+}
+
+// WGLisExtensionSupported: This Is A Form Of The Extension For WGL
+bool WGLisExtensionSupported(const char *extension)
+{
+	const size_t extlen = strlen(extension);
+	const char *supported = NULL;
+
+	// Try To Use wglGetExtensionStringARB On Current DC, If Possible
+	PROC wglGetExtString = wglGetProcAddress("wglGetExtensionsStringARB");
+
+	if (wglGetExtString)
+		supported = ((char*(__stdcall*)(HDC))wglGetExtString)(wglGetCurrentDC());
+
+	// If That Failed, Try Standard Opengl Extensions String
+	if (supported == NULL)
+		supported = (char*)glGetString(GL_EXTENSIONS);
+
+	// If That Failed Too, Must Be No Extensions Supported
+	if (supported == NULL)
+		return false;
+
+	// Begin Examination At Start Of String, Increment By 1 On False Match
+	for (const char* p = supported; ; p++)
+	{
+		// Advance p Up To The Next Possible Match
+		p = strstr(p, extension);
+
+		if (p == NULL)
+			return false;															// No Match
+
+		// Make Sure That Match Is At The Start Of The String Or That
+		// The Previous Char Is A Space, Or Else We Could Accidentally
+		// Match "wglFunkywglExtension" With "wglExtension"
+
+		// Also, Make Sure That The Following Character Is Space Or NULL
+		// Or Else "wglExtensionTwo" Might Match "wglExtension"
+		if ((p==supported || p[-1]==' ') && (p[extlen]=='\0' || p[extlen]==' '))
+			return true;															// Match
 	}
 }
 
-AGLDEF b32
-aglPlatformCreateWindow(agl_context *Context, char *Title)
-{
-    GLuint		PixelFormat;			// Holds The Results After Searching For A Match
+// InitMultisample: Used To Query The Multisample Frequencies
+bool InitMultisample(HINSTANCE hInstance,HWND hWnd,PIXELFORMATDESCRIPTOR pfd)
+{  
+    // See If The String Exists In WGL!
+	if (!WGLisExtensionSupported("WGL_ARB_multisample"))
+	{
+		__agl_Context.MultisampleSupported = false;
+		return false;
+	}
+
+	// Get Our Pixel Format
+	PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");	
+	if (!wglChoosePixelFormatARB) 
+	{
+		__agl_Context.MultisampleSupported = false;
+		return false;
+	}
+
+	// Get Our Current Device Context
+	HDC hDC = GetDC(hWnd);
+
+	int		pixelFormat;
+	int		valid;
+	UINT	numFormats;
+	float	fAttributes[] = {0,0};
+
+	// These Attributes Are The Bits We Want To Test For In Our Sample
+	// Everything Is Pretty Standard, The Only One We Want To 
+	// Really Focus On Is The SAMPLE BUFFERS ARB And WGL SAMPLES
+	// These Two Are Going To Do The Main Testing For Whether Or Not
+	// We Support Multisampling On This Hardware.
+	int iAttributes[] =
+        {
+            WGL_DRAW_TO_WINDOW_ARB,GL_TRUE,
+            WGL_SUPPORT_OPENGL_ARB,GL_TRUE,
+            WGL_ACCELERATION_ARB,WGL_FULL_ACCELERATION_ARB,
+            WGL_COLOR_BITS_ARB,24,
+            WGL_ALPHA_BITS_ARB,8,
+            WGL_DEPTH_BITS_ARB,16,
+            WGL_STENCIL_BITS_ARB,0,
+            WGL_DOUBLE_BUFFER_ARB,GL_TRUE,
+            WGL_SAMPLE_BUFFERS_ARB,GL_TRUE,
+            WGL_SAMPLES_ARB,4,
+            0,0
+        };
+
+	// First We Check To See If We Can Get A Pixel Format For 4 Samples
+	valid = wglChoosePixelFormatARB(hDC,iAttributes,fAttributes,1,&pixelFormat,&numFormats);
+ 
+	// If We Returned True, And Our Format Count Is Greater Than 1
+	if (valid && numFormats >= 1)
+	{
+		__agl_Context.MultisampleSupported = true;
+		__agl_Context.MultisampleFormat = pixelFormat;	
+		return __agl_Context.MultisampleSupported;
+	}
+
+	// Our Pixel Format With 4 Samples Failed, Test For 2 Samples
+	iAttributes[19] = 2;
+	valid = wglChoosePixelFormatARB(hDC,iAttributes,fAttributes,1,&pixelFormat,&numFormats);
+	if (valid && numFormats >= 1)
+	{
+		__agl_Context.MultisampleSupported = true;
+		__agl_Context.MultisampleFormat = pixelFormat;	 
+		return __agl_Context.MultisampleSupported;
+	}
+	  
+	// Return The Valid Format
+	return  __agl_Context.MultisampleSupported;
+}
+
+b32
+aglPlatformCreateWindow(char *Title)
+{    
+    u32 		PixelFormat;			// Holds The Results After Searching For A Match
 	WNDCLASS	wc;						// Windows Class Structure
 	DWORD		dwExStyle;				// Window Extended Style
 	DWORD		dwStyle;				// Window Style
 	RECT		WindowRect;				// Grabs Rectangle Upper Left / Lower Right Value
     
 	WindowRect.left     = (long) 0;
-	WindowRect.right    = (long) Context->Width;
+	WindowRect.right    = (long) __agl_Context.Width;
 	WindowRect.top      = (long) 0;
-	WindowRect.bottom   = (long) Context->Height;
+	WindowRect.bottom   = (long) __agl_Context.Height;
 
 	wc.style			= CS_HREDRAW | CS_VREDRAW | CS_OWNDC;	// Redraw On Size, And Own DC For Window.
 	wc.lpfnWndProc		= (WNDPROC) WndProc;					// WndProc Handles Messages
@@ -278,12 +546,12 @@ aglPlatformCreateWindow(agl_context *Context, char *Title)
 	}
 
     dwExStyle=WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;			// Window Extended Style
+    //    dwStyle=WS_OVERLAPPEDWINDOW;
     dwStyle=WS_OVERLAPPEDWINDOW;
-
 	AdjustWindowRectEx(&WindowRect, dwStyle, FALSE, dwExStyle);		// Adjust Window To True Requested Size
 
 	// Create The Window
-	if (!(Context->HWnd = CreateWindowEx(	0,							// Extended Style For The Window
+	if (!(__agl_Context.HWnd = CreateWindowEx(	0,							// Extended Style For The Window
                                             AGL_WND_CLASS_NAME,							// Class Name
                                             Title,								// Window Title
                                             dwStyle |							// Defined Window Style
@@ -295,9 +563,9 @@ aglPlatformCreateWindow(agl_context *Context, char *Title)
                                             NULL,								// No Parent Window
                                             NULL,								// No Menu
                                             wc.hInstance,							// Instance
-                                            Context)))								// Dont Pass Anything To WM_CREATE
+                                            0)))								// Dont Pass Anything To WM_CREATE
 	{
-        aglPlatformDestroyWindow(Context);	
+        aglPlatformDestroyWindow();	
 		MessageBox(NULL,"Window Creation Error.","ERROR",MB_OK|MB_ICONEXCLAMATION);
 		return false;
 	}
@@ -323,46 +591,68 @@ aglPlatformCreateWindow(agl_context *Context, char *Title)
             0,											// Reserved
             0, 0, 0										// Layer Masks Ignored
         };
-	
-	if (!(Context->DC = GetDC(Context->HWnd)))
+    PIXELFORMATDESCRIPTOR *ppfd = &pfd;
+    
+	if (!(__agl_Context.DC = GetDC(__agl_Context.HWnd)))
 	{
-        aglPlatformDestroyWindow(Context);	
-		MessageBox(NULL,"Can't Create A GL Device Context->","ERROR",MB_OK|MB_ICONEXCLAMATION);
+        aglPlatformDestroyWindow();	
+		MessageBox(NULL,"Can't Create A GL Device __agl_Context.","ERROR",MB_OK|MB_ICONEXCLAMATION);
 		return false;
 	}
 
-	if (!(PixelFormat=ChoosePixelFormat(Context->DC, &pfd)))
-	{
-        aglPlatformDestroyWindow(Context);	
-		MessageBox(NULL,"Can't Find A Suitable PixelFormat.","ERROR",MB_OK|MB_ICONEXCLAMATION);
-		return false;
+    if(!__agl_Context.MultisampleSupported)
+    {
+        if (!(PixelFormat=ChoosePixelFormat(__agl_Context.DC, ppfd)))
+        {
+            aglPlatformDestroyWindow();	
+            MessageBox(NULL,"Can't Find A Suitable PixelFormat.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+            return false;
+        }
+    }
+    else
+    {
+        PixelFormat = __agl_Context.MultisampleFormat;
     }
     
-	if(!SetPixelFormat(Context->DC, PixelFormat, &pfd))
+	if(!SetPixelFormat(__agl_Context.DC, PixelFormat, ppfd))
 	{
-        aglPlatformDestroyWindow(Context);	
+        aglPlatformDestroyWindow();	
 		MessageBox(NULL,"Can't Set The PixelFormat.","ERROR",MB_OK|MB_ICONEXCLAMATION);
         return false;
 	}
 
-	if (!(Context->GLContext = wglCreateContext(Context->DC)))
+	if (!(__agl_Context.GLContext = wglCreateContext(__agl_Context.DC)))
 	{
-        aglPlatformDestroyWindow(Context);	
-		MessageBox(NULL,"Can't Create A GL Rendering Context->","ERROR",MB_OK|MB_ICONEXCLAMATION);
+        aglPlatformDestroyWindow();	
+		MessageBox(NULL,"Can't Create A GL Rendering __agl_Context.","ERROR",MB_OK|MB_ICONEXCLAMATION);
         return false;
 	}
 
-	if(!wglMakeCurrent(Context->DC, Context->GLContext))
+	if(!wglMakeCurrent(__agl_Context.DC, __agl_Context.GLContext))
 	{
-        aglPlatformDestroyWindow(Context);	
-		MessageBox(NULL,"Can't Activate The GL Rendering Context->","ERROR",MB_OK|MB_ICONEXCLAMATION);
+        aglPlatformDestroyWindow();	
+		MessageBox(NULL,"Can't Activate The GL Rendering __agl_Context.","ERROR",MB_OK|MB_ICONEXCLAMATION);
         return false;
 	}
 
-#if 1
-    wgl_create_context_attribts_arb *wglCreateContextAttribsARB = (wgl_create_context_attribts_arb *)wglGetProcAddress("wglCreateContextAttribsARB");
-    if (wglCreateContextAttribsARB)
+    if(!__agl_Context.MultisampleSupported)
     {
+        if(InitMultisample(GetModuleHandle(0), __agl_Context.HWnd, pfd))
+        {
+            aglPlatformDestroyWindow();
+            aglPlatformCreateWindow(Title);
+        }
+    }
+    
+
+#if 0
+    PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
+    PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB;
+    wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC) wglGetProcAddress("wglCreateContextAttribsARB");
+    wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress("wglChoosePixelFormatARB");
+    if (wglCreateContextAttribsARB && wglChoosePixelFormatARB)
+    {
+         /*
         int Attribs[] =
             {
                 WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
@@ -371,129 +661,84 @@ aglPlatformCreateWindow(agl_context *Context, char *Title)
                 ,
                 WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
                 0,
-            };
-        /*
-          int Attribs[] = {
-          WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
-          WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
-          WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
-          WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
-          WGL_COLOR_BITS_ARB, 32,
-          WGL_DEPTH_BITS_ARB, 24,
-          WGL_STENCIL_BITS_ARB, 8,
-          WGL_SAMPLE_BUFFERS_ARB, 1, //Number of buffers (must be 1 at time of writing)
-          WGL_SAMPLES_ARB, 4,        //Number of samples
-          0
-          };
-        */
-        HGLRC modern_hRC = wglCreateContextAttribsARB(Context->DC, 0, Attribs);
-        if (modern_hRC)
+                };
+         */
+        int Attribs[] = {
+            WGL_DRAW_TO_WINDOW_ARB,GL_TRUE,
+            WGL_SUPPORT_OPENGL_ARB,GL_TRUE,
+            WGL_ACCELERATION_ARB,WGL_FULL_ACCELERATION_ARB,
+            WGL_COLOR_BITS_ARB,24,
+            WGL_ALPHA_BITS_ARB,8,
+            WGL_DEPTH_BITS_ARB,16,
+            WGL_STENCIL_BITS_ARB,0,
+            WGL_DOUBLE_BUFFER_ARB,GL_TRUE,
+            WGL_SAMPLE_BUFFERS_ARB,GL_TRUE,
+            WGL_SAMPLES_ARB, 4 ,                        // Check For 4x Multisampling
+            0,0};
+
+        int pixelFormat;
+        UINT numFormats;
+        b32 Valid = wglChoosePixelFormatARB(__agl_Context.DC, Attribs, 0, 1, &pixelFormat, &numFormats);
+        if(Valid && numFormats >= 1)
         {
-            if(wglMakeCurrent(Context->DC, modern_hRC))
+            if(SetPixelFormat(__agl_Context.DC, pixelFormat, ppfd) == false)
             {
-                wglDeleteContext(Context->GLContext);
-                Context->GLContext = modern_hRC;
+                printf("failed");
             }
+        }
+        
+        HGLRC modern_hRC = wglCreateContextAttribsARB(__agl_Context.DC, 0, Attribs);
+        if (modern_hRC)
+        {           
+            if(wglMakeCurrent(__agl_Context.DC, modern_hRC))
+            {
+                wglDeleteContext(__agl_Context.GLContext);
+                __agl_Context.GLContext = modern_hRC;
+
+
+
+            }
+            
+
+            
         }
         else
         {
-            aglPlatformDestroyWindow(Context);
+            aglPlatformDestroyWindow();
             MessageBox(NULL,"Can't create modern opengl context. Version > 2.0" ,"ERROR",MB_OK|MB_ICONEXCLAMATION);
             return false;
         }
     }
 #endif
 
-	ShowWindow(Context->HWnd, SW_SHOW);						// Show The Window
-	SetForegroundWindow(Context->HWnd);						// Slightly Higher Priority
-    SetFocus(Context->HWnd);									// Sets Keyboard Focus To The Window
+	ShowWindow(__agl_Context.HWnd, SW_SHOW);						// Show The Window
+	SetForegroundWindow(__agl_Context.HWnd);						// Slightly Higher Priority
+    SetFocus(__agl_Context.HWnd);									// Sets Keyboard Focus To The Window
 
-    QueryPerformanceFrequency(&Context->Frequency);
+    QueryPerformanceFrequency(&__agl_Context.Frequency);
     timeBeginPeriod(1);
     
     return true;
 }
 
-AGLDEF void
-aglPlatformHandleEvents(agl_context *Context)
-{
-    MSG msg;
-    while(PeekMessage(&msg, 0, 0, 0, PM_REMOVE) && Context->Running)
-    {
-        switch(msg.message)
-        {
-            case WM_QUIT:
-            {
-                Context->Running = false;
-            }break;
-            case WM_KEYDOWN:
-            {
-                Context->KeyboardIO.Keys[msg.wParam] = 1;
-                // Handle escape event to close window
-                if(Context->KeyboardIO.Keys[VK_ESCAPE]) PostQuitMessage(0);
-            }break;
-            case WM_KEYUP:								// Has A Key Been Released?
-            {
-                Context->KeyboardIO.Keys[msg.wParam] = 0;
-            }break;
-            case WM_MOUSEMOVE:
-            {
-                s32 X = ((int)(short)LOWORD(msg.lParam));
-                s32 Y = ((int)(short)HIWORD(msg.lParam));
-                Context->MouseIO.dX = X - Context->MouseIO.X;
-                Context->MouseIO.dY = Y - Context->MouseIO.Y;
-                Context->MouseIO.X = X;
-                Context->MouseIO.Y = Y;
-            }break;
-            case WM_RBUTTONUP:
-            {
-                Context->MouseIO.Right = false;
-                //if(aglMouseReleased) aglMouseReleased(MK_RBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-            }break;
-            case WM_MBUTTONUP:
-            {
-                Context->MouseIO.Middle = false;
-                //if(aglMouseReleased) aglMouseReleased(MK_MBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-            }break;
-            case WM_LBUTTONUP:
-            {
-                Context->MouseIO.Left = false;
-                //if(aglMouseReleased) aglMouseReleased(MK_LBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-            }break;
-            case WM_MBUTTONDOWN:
-            case WM_RBUTTONDOWN:
-            case WM_LBUTTONDOWN:
-            {
-                Context->MouseIO.Left = (msg.wParam == MK_LBUTTON);
-                Context->MouseIO.Middle = (msg.wParam == MK_MBUTTON);
-                Context->MouseIO.Right = (msg.wParam == MK_RBUTTON);
-                //if(aglMousePressed) aglMousePressed(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-            }break;
-            
-        }
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
+void aglPlatformSwapBuffers() { SwapBuffers(__agl_Context.DC); }
+void aglPlatformCloseWindow() { DestroyWindow(__agl_Context.HWnd); }
+void aglPlatformSetWindowTitle(char *Title) { SetWindowText(__agl_Context.HWnd, Title); }
+void aglPlatformSleep(s32 Time) { if(Time > 0) Sleep(Time); }
+void aglPlatformBeginFrame() {QueryPerformanceCounter(&__agl_Context.FrameBegin); }
+void aglPlatformEndFrame() {
+    QueryPerformanceCounter(&__agl_Context.FrameEnd);
+    __agl_Context.Delta = ((r32) (__agl_Context.FrameEnd.QuadPart - __agl_Context.FrameBegin.QuadPart) / (r32) __agl_Context.Frequency.QuadPart);
+
+    __agl_Context.MouseInput.dX = 0;
+    __agl_Context.MouseInput.dY = 0;
 }
+b32 aglPlatformIsActive() { return __agl_Context.Active; }
 
-AGLDEF void aglPlatformSleep(agl_context *Context, s32 Time) { if(Time > 0) Sleep(Time); }
-AGLDEF void aglPlatformBeginFrame(agl_context *Context) { QueryPerformanceCounter(&Context->FrameBegin); }
-AGLDEF void aglPlatformEndFrame(agl_context *Context) {
-    QueryPerformanceCounter(&Context->FrameEnd);
-    Context->Delta = ((r32) (Context->FrameEnd.QuadPart - Context->FrameBegin.QuadPart) / (r32) Context->Frequency.QuadPart);
-}
 
-AGLDEF void aglPlatformSwapBuffers(agl_context *Context) {
-    SwapBuffers(Context->DC);
-    Context->MouseIO.dX = 0;
-    Context->MouseIO.dY = 0;
-}
+#elif // any other platform
 
-#elif
-
-#endif // PLATFORM SPECIFIC FUNCTIONS
-
-#endif // AGL_NOIMPLEMENTATION
+#endif
 
 // NOTE: General api code for handling the window and opengl context.
 void *
@@ -544,83 +789,76 @@ aglInitModernGLImpl()
 
         glVertexAttribDivisor              = (PFNGLVERTEXATTRIBDIVISORPROC)      aglGetProcAddress("glVertexAttribDivisor");
         glDrawArraysInstanced              = (PFNGLDRAWARRAYSINSTANCEDPROC)      aglGetProcAddress("glDrawArraysInstanced");
+
+        glSampleCoverage                   = (PFNGLSAMPLECOVERAGEPROC)          aglGetProcAddress("glSampleCoverage");
         
         Result = true;
     }
     return Result;
 }
 
-agl_context
+agl_context *
 aglCreateWindow(char *Title = "agl default window", s32 Width = 1024, s32 Height = 768)
 {
-    agl_context Context = {};
-    Context.Width = Width;
-    Context.Height = Height;
+    __agl_Context.Width = Width;
+    __agl_Context.Height = Height;
 
-    if(aglPlatformCreateWindow(&Context, Title) && Context.GLContext)
+    if(aglPlatformCreateWindow(Title) && __agl_Context.GLContext)
     {
-        Context.GLInfo.Vendor = (char *)glGetString(GL_VENDOR);
-        Context.GLInfo.Renderer = (char *)glGetString(GL_RENDERER);
-        Context.GLInfo.Version = (char *)glGetString(GL_VERSION);
-        Context.GLInfo.ShadingLanguageVersion = (char *) glGetString(GL_SHADING_LANGUAGE_VERSION);
-        Context.GLInfo.Extensions = (char *)glGetString(GL_EXTENSIONS);
+        __agl_Context.GLInfo.Vendor = (char *)glGetString(GL_VENDOR);
+        __agl_Context.GLInfo.Renderer = (char *)glGetString(GL_RENDERER);
+        __agl_Context.GLInfo.Version = (char *)glGetString(GL_VERSION);
+        __agl_Context.GLInfo.ShadingLanguageVersion = (char *) glGetString(GL_SHADING_LANGUAGE_VERSION);
+        __agl_Context.GLInfo.Extensions = (char *)glGetString(GL_EXTENSIONS);
         
-        Context.Running = aglInitModernGLImpl();
+        __agl_Context.Running = aglInitModernGLImpl();
+        aglPlatformBeginFrame();
+        return &__agl_Context;
     }
-    return Context;
+    return 0;
 }
 
-void
-aglDestroyWindow(agl_context *Context)
-{
-	aglPlatformDestroyWindow(Context);
-}
+void aglCloseWindow() { aglPlatformCloseWindow(); };
 
 b32
-aglHandleEvents(agl_context *Context)
+aglHandleEvents()
 {
-    aglPlatformBeginFrame(Context);
-    aglPlatformHandleEvents(Context);
-    return Context->Running;
-}
-
-b32
-aglKeyDown(agl_context *Context, char Key)
-{
-    return Context->KeyboardIO.Keys[Key];
-}
-
-b32
-aglKeyUp(agl_context *Context, char Key)
-{
-    return !Context->KeyboardIO.Keys[Key];
-}
-
-void
-aglSwapBuffers(agl_context *Context)
-{
-    aglPlatformSwapBuffers(Context);
-    aglPlatformEndFrame(Context);
-    if(Context->TargetFPS > 0)
-    {
-        r32 TargetFrameTime = 1.0f / Context->TargetFPS;
-        if(Context->Delta < TargetFrameTime)
-        {
-            aglPlatformSleep(Context, (s32) ((TargetFrameTime - Context->Delta) * 1000));
-            aglPlatformEndFrame(Context);
-            if(Context->Delta > TargetFrameTime) Context->Delta = TargetFrameTime;
+    // Temporary key clear at the end of a frame
+    for(s32 i=0; i< 256; i++) {
+        agl_key_state *State = __agl_Context.KeyboardInput.Keys + i;
+        if(State->EndedDown) {
+            State->Count = 0;
+            State->EndedDown = false;
         }
     }
-    Context->FPS = (u32) (1.0f /Context->Delta);
-    glGetError();
+
+    aglPlatformEndFrame();
+    if(__agl_Context.TargetFPS > 0.0f)
+    {
+        r32 TargetFrameTime = 1.0f / __agl_Context.TargetFPS;
+        if(__agl_Context.Delta < TargetFrameTime)
+        {
+            
+            aglPlatformSleep((s32) ((TargetFrameTime - __agl_Context.Delta) * 1000));
+            aglPlatformEndFrame();
+        }
+    }
+    __agl_Context.Time += __agl_Context.Delta;
+    __agl_Context.FPS = (u32) (1.0f /__agl_Context.Delta);
+    
+    aglPlatformBeginFrame();
+    aglPlatformHandleEvents();
+    return __agl_Context.Running;
 }
 
-void
-aglSetFixedFPS(agl_context *Context, s32 FPS)
-{
-    Context->TargetFPS = FPS;
-}
-
+r32  aglKeyDownTransition(char Key) { return (r32) __agl_Context.KeyboardInput.Keys[Key].Count * __agl_Context.Delta; }
+b32  aglKeyDown(u8 Key) { return (!__agl_Context.KeyboardInput.Keys[Key].EndedDown && __agl_Context.KeyboardInput.Keys[Key].Count > 0); }
+b32  aglKeyUp(u8 Key) { return __agl_Context.KeyboardInput.Keys[Key].EndedDown; }
+void aglSwapBuffers() { aglPlatformSwapBuffers(); }
+void aglSetFixedFPS(s32 FPS) { __agl_Context.TargetFPS = FPS; }
+void aglToggleFullscreen() { aglPlatformToggleFullscreen(); }
+void aglSetWindowTitle(char * Title) { aglPlatformSetWindowTitle(Title); }
+void aglCleanup() { aglPlatformDestroyWindow(); }
 
 #define AGL_H
 #endif
