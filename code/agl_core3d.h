@@ -175,7 +175,7 @@ aglInitDefaultShader()
 
 extern void
 aglCameraInit(agl_camera *Camera, u32 Mode = 0, v3 Position = V3(0, 0, 1),
-              r32 FoV = 45.0f, r32 Speed = 9.0f, r32 Sensitivity = 0.005f,
+              r32 FoV = 45.0f, r32 Speed = 6.0f, r32 Sensitivity = 0.005f,
               r32 Yaw = M_PI, r32 Pitch = 0.0f)
 {
     Camera->Mode = Mode;
