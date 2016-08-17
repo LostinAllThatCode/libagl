@@ -17,7 +17,8 @@ aglCompileShader(const char *Source, GLenum Type)
             int Length = 0;
             char Info[4096];
             glGetShaderInfoLog(Result, 4096, &Length, Info);
-            printf("Shader compile error:\n%s", Info);
+            printf("%s\n", Info);
+            aglAssert(!"Shader compile error");
         }
     }
     return Result;
@@ -66,9 +67,11 @@ aglLinkProgram(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
     return Result;
 }
 
-#define aglCreateShader(ShaderId, ...)                                  \
+#define aglCreateShader(Var, ...)                                       \
+    GLuint Var = glCreateProgram();                                     \
     GLint Shaders[] = { __VA_ARGS__ };                                  \
-    if(!aglLinkProgram(ShaderId, Shaders, sizeof(Shaders) / sizeof(Shaders[0]))) return 0; 
+    GLuint Result = aglLinkProgram(Var, Shaders, sizeof(Shaders) / sizeof(Shaders[0])); \
+    if(!Result) return -1
 
 // FRAGMENT SHADERS
 const char *
@@ -121,11 +124,11 @@ AGL_SHADERS_FRAG_3 = GLSL
         in vec3 Normal;
         
         out vec4 color;
-
+        
         void main(){
             // Ambient
             vec3  ambient = light.ambient * material.ambient;
-
+            
             // Diffuse
             vec3  norm = normalize(Normal);
             vec3  lightDir = normalize(light.position - FragPos);
@@ -203,7 +206,6 @@ AGL_SHADERS_VERT_4 = GLSL
         uniform mat4 matrixView;
         uniform mat4 matrixInverse;
 
-
         out vec2 UV;
         out vec3 Normal;
         out vec3 FragPos;
@@ -237,6 +239,38 @@ AGL_16x16BATCHDRAW_VS = GLSL
         }
      );
 
+
+const char *
+AGL_SHADER_TEXT_VS = GLSL
+    (
+        layout(location = 0) in vec2 vertexPosition;
+        layout(location = 1) in vec2 vertexUV;
+
+        uniform vec2 viewport;
+
+        out vec2 UV;
+        
+        void main()
+        {
+            vec2 finalPosition = vertexPosition - (viewport / 2);
+            gl_Position = vec4(finalPosition / (viewport / 2), 0, 1);
+            UV = vertexUV;
+        }
+     );
+
+const char *
+AGL_SHADER_TEXT_FS = GLSL
+    (
+        in vec2 UV;
+        uniform sampler2D texture2D;
+        
+        out vec4 color;
+        
+        void main()
+        {
+            color = texture(texture2D, UV);
+        }
+);
 #define AGL_SHADERS_H
 #endif
 

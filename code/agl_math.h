@@ -3,18 +3,22 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+#ifndef AGL_H
+    #include "agl.h"
+#endif
+
 // NOTE: 2D vector implementation
 union v2
 {
     struct
     {
-        real32 x, y;
+        r32 x, y;
     };
     struct
     {
-        real32 u, v;
+        r32 u, v;
     };
-    real32 E[2];
+    r32 E[2];
 };
 
 // NOTE: 2d vector initialization
@@ -41,7 +45,7 @@ V2i(s32 x, s32 y)
 
 // NOTE: 2D vector operator overloading
 inline v2
-operator*(real32 A, v2 B)
+operator*(r32 A, v2 B)
 {
     v2 Result;
 
@@ -52,7 +56,7 @@ operator*(real32 A, v2 B)
 }
 
 inline v2
-operator*(v2 B, real32 A)
+operator*(v2 B, r32 A)
 {
     v2 Result = A*B;
 
@@ -60,7 +64,7 @@ operator*(v2 B, real32 A)
 }
 
 inline v2 &
-operator*=(v2 &B, real32 A)
+operator*=(v2 &B, r32 A)
 {
     B = A * B;
 
@@ -127,7 +131,7 @@ union v3
     struct { r32 Ignored1_; v2 yz; };
     struct { v2 uv; r32 Ignored2_; };
     struct { r32 Ignored3_; v2 vw; };
-    real32 E[3];
+    r32 E[3];
 };
 
 // NOTE: 3D vector initialization
@@ -135,6 +139,13 @@ inline v3
 V3(r32 x, r32 y, r32 z)
 {
     v3 Result = { x, y, z };
+    return Result;
+}
+
+inline v3
+V3i(s32 x, s32 y, s32 z)
+{
+    v3 Result = { (r32) x, (r32) y, (r32) z };
     return Result;
 }
 
@@ -154,7 +165,7 @@ V3(r32 xyz)
 
 // NOTE: 3D vector operator overloading
 inline v3
-operator*(real32 A, v3 B)
+operator*(r32 A, v3 B)
 {
     v3 Result;
 
@@ -166,7 +177,7 @@ operator*(real32 A, v3 B)
 }
 
 inline v3
-operator*(v3 B, real32 A)
+operator*(v3 B, r32 A)
 {
     v3 Result = A*B;
 
@@ -174,7 +185,7 @@ operator*(v3 B, real32 A)
 }
 
 inline v3 &
-operator*=(v3 &B, real32 A)
+operator*=(v3 &B, r32 A)
 {
     B = A * B;
 
@@ -259,7 +270,7 @@ union v4
     struct { v2 xy; r32 Ignored0_; r32 Ignored1_; };
     struct { r32 Ignored2_; v2 yz; r32 Ignored3_; };
     struct { r32 Ignored4_; r32 Ignored5_; v2 zw; };
-    real32 E[4];
+    r32 E[4];
 };
 
 // NOTE: 4D vector initialization
@@ -279,7 +290,7 @@ V4(v3 xyz, r32 w)
 
 // NOTE: 4D vector operator overloading
 inline v4
-operator*(real32 A, v4 B)
+operator*(r32 A, v4 B)
 {
     v4 Result;
 
@@ -292,7 +303,7 @@ operator*(real32 A, v4 B)
 }
 
 inline v4
-operator*(v4 B, real32 A)
+operator*(v4 B, r32 A)
 {
     v4 Result = A*B;
 
@@ -300,7 +311,7 @@ operator*(v4 B, real32 A)
 }
 
 inline v4 &
-operator*=(v4 &B, real32 A)
+operator*=(v4 &B, r32 A)
 {
     B = A * B;
 
@@ -694,14 +705,14 @@ inline mat4x4
 FrustumMatrix(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
 {
     mat4x4 Result = NullMat4x4();
-#if 0
+#if 1
     Result.m0  = (Near * 2.0f) / (Right - Left);
     Result.m5  = (Near * 2.0f) / (Top - Bottom);
     Result.m8  = (Right + Left) / (Right - Left);
     Result.m9  = (Top + Bottom) / (Top - Bottom);
-    Result.m10 = -(Far + Near) / (Far - Near);
+    Result.m10 = -((Far + Near) / (Far - Near));
     Result.m11 = -1.0f;
-    Result.m14 = -(2.0f * Far * Near) / (Far - Near);
+    Result.m14 = -((2.0f * Far * Near) / (Far - Near));
 #else
     Result.m0  = (Near * 2.0f) / (Right - Left);
     Result.m2  = (Right + Left) / (Right - Left);
@@ -742,6 +753,19 @@ LookAtMatrix(v3 Eye, v3 Target, v3 Up)
     Result.m10 = z.z;
     Result.m11 = -((z.x*Eye.x) + (z.y*Eye.y) + (z.z*Eye.z));
     Result.m15 = 1.0f;
+    return Result;
+}
+inline mat4x4
+OrhtogonalMatrix(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
+{
+    mat4x4 Result = NullMat4x4();
+    Result.m0 = 2 / (Right - Left);
+    Result.m5 = 2 / (Top - Bottom);
+    Result.m10 = -2 / (Far - Near);
+    Result.m12 = -((Right + Left) / (Right - Left));
+    Result.m13 = -((Top + Bottom) / (Top - Bottom));
+    Result.m14 = -((Far + Near) / (Far - Near));
+    Result.m15 = 1;
     return Result;
 }
 

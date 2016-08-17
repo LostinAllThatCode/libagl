@@ -1,4 +1,5 @@
 # libagl
-opengl utility library
+
+opengl utility library (single header include files - stb style)
 
 (currently in development)

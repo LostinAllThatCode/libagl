@@ -1,56 +1,11 @@
 #if !defined(AGL_CORE3D_H)
 
-#ifndef AGL_TYPES
-    #include <stdio.h>
-    #include <stdint.h>
-    #include <stddef.h>
-    #include <limits.h>
-    #include <float.h>
-    
-    typedef int8_t int8;
-    typedef int16_t int16;
-    typedef int32_t int32;
-    typedef int64_t int64;
-    typedef int32 bool32;
-    
-    typedef uint8_t uint8;
-    typedef uint16_t uint16;
-    typedef uint32_t uint32;
-    typedef uint64_t uint64;
-    
-    typedef intptr_t intptr;
-    typedef uintptr_t uintptr;
-    
-    typedef size_t memory_index;
-        
-    typedef float real32;
-    typedef double real64;
-        
-    typedef int8 s8;
-    typedef int8 s08;
-    typedef int16 s16;
-    typedef int32 s32;
-    typedef int64 s64;
-    typedef bool32 b32;
-    
-    typedef uint8 u8;
-    typedef uint8 u08;
-    typedef uint16 u16;
-    typedef uint32 u32;
-    typedef uint64 u64;
-    
-    typedef real32 r32;
-    typedef real64 r64;
-    #define AGL_TYPES
-#endif
+#include "agl_math.h"
 
-#ifndef AGL_MATH_H
-    #include "agl_math.h"
-#endif
-
-#ifndef aglMalloc
-    #define aglMalloc(Size) malloc(Size);
-    #define aglFree(Size) free(Size);
+#if !defined(aglMalloc) || !defined(aglFree)
+    #include <stdlib.h>
+    #define aglMalloc(Size) malloc(Size)
+    #define aglFree(Size) free(Size)
 #endif
 
 #ifdef __cplusplus
@@ -86,10 +41,10 @@ extern "C" {
 
     typedef struct
     {
+        u32  ID;
         v3   Ambient, Diffuse, Specular;
         r32  Shininess;
         u32  Texture;
-        char Name[64];
     } agl_material;
 
     typedef struct
@@ -136,6 +91,7 @@ extern "C" {
 }
 #endif
 
+u32 MaterialIndexCount;
 mat4x4 CurrentProjectionMatrix, CurrentViewMatrix;
 agl_camera *ActiveCamera;
 
@@ -170,13 +126,14 @@ aglInitDefaultShader()
         Result.Camera = glGetUniformLocation(Result.Id, "viewPos");
         Result.Success = true;
     }
+    aglAssert(Result.Success);
     return Result;
 }
 
 extern void
 aglCameraInit(agl_camera *Camera, u32 Mode = 0, v3 Position = V3(0, 0, 1),
-              r32 FoV = 45.0f, r32 Speed = 6.0f, r32 Sensitivity = 0.005f,
-              r32 Yaw = M_PI, r32 Pitch = 0.0f)
+              r32 FoV = 45.0f, r32 Yaw = 0.f, r32 Pitch = 0.0f,
+              r32 Speed = 6.0f, r32 Sensitivity = 0.005f)
 {
     Camera->Mode = Mode;
     Camera->Position = Position;  
@@ -185,16 +142,9 @@ aglCameraInit(agl_camera *Camera, u32 Mode = 0, v3 Position = V3(0, 0, 1),
     Camera->Yaw = Yaw;
     Camera->Pitch = Pitch;
     Camera->FoV = FoV;
-    Camera->Front = V3(cos(Camera->Pitch) * sin(Camera->Yaw), sin(Camera->Pitch), cos(Camera->Pitch) * cos(Camera->Yaw));
-    Camera->Right = V3(sin(Camera->Yaw - M_PI/2.0f), 0, cos(Camera->Yaw - M_PI/2.0f));
+    Camera->Front = V3(cosf(Camera->Pitch) * sinf(Camera->Yaw), sinf(Camera->Pitch), cosf(Camera->Pitch) * cosf(Camera->Yaw));
+    Camera->Right = V3(sinf(Camera->Yaw - M_PI/2.0f), 0, cosf(Camera->Yaw - M_PI/2.0f));
     Camera->Up = CrossV3(Camera->Right, Camera->Front);
-}
-
-extern void
-aglCameraTarget(agl_camera *Camera, v3 *Position)
-{
-    Camera->Mode = AGL_CAMERA_MODE_TARGET;
-    Camera->Target = Position;
 }
 
 inline void
@@ -215,9 +165,6 @@ aglCameraUpdate(agl_camera *Camera, agl_context *Context)
                 aglPlatformSetCursor(false);
                 Camera->Yaw -= Context->MouseInput.dX * Camera->Sensitivity;
                 Camera->Pitch -= Context->MouseInput.dY * Camera->Sensitivity;
-                Camera->Front = V3(cos(Camera->Pitch) * sin(Camera->Yaw), sin(Camera->Pitch), cos(Camera->Pitch) * cos(Camera->Yaw));
-                Camera->Right = V3(sin(Camera->Yaw - M_PI/2.0f), 0, cos(Camera->Yaw - M_PI/2.0f));
-                Camera->Up = CrossV3(Camera->Right, Camera->Front);
             } else aglPlatformSetCursor(true);
         }break;
         case AGL_CAMERA_MODE_STATIC:
@@ -240,11 +187,10 @@ aglMaterial(v3 Ambient = V3(1.0f), v3 Diffuse = V3(1.0f), v3 Specular = V3(0.5f)
 {
     agl_material Material = {};
     Material.Ambient  = Ambient;
-    Material.Specular = Specular;
     Material.Diffuse  = Diffuse;
+    Material.Specular = Specular;
     Material.Shininess = Shininess;
-    Material.Texture = 0;
-    sprintf(Material.Name, "DefaultMaterial");
+    Material.ID = ++MaterialIndexCount;
     return Material;
 }
 
@@ -256,6 +202,9 @@ aglCameraView(agl_camera *Camera)
     {
         case AGL_CAMERA_MODE_FREE:
         {
+            Camera->Front = V3(cosf(Camera->Pitch) * sinf(Camera->Yaw), sinf(Camera->Pitch), cosf(Camera->Pitch) * cosf(Camera->Yaw));
+            Camera->Right = V3(sinf(Camera->Yaw - M_PI/2.0f), 0, cosf(Camera->Yaw - M_PI/2.0f));
+            Camera->Up = CrossV3(Camera->Right, Camera->Front);
             Result = LookAtMatrix(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
         }break;
         case AGL_CAMERA_MODE_STATIC:
@@ -282,11 +231,15 @@ aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
         u32 Mode = (Dynamic ? GL_STREAM_DRAW : GL_STATIC_DRAW);
         if(Mesh->VertexCount > 0)
         {
+            glGenVertexArrays(1, &Mesh->VAO);
+            glBindVertexArray(Mesh->VAO); 
             if(Mesh->Vertices)
             {
                 glGenBuffers(1, Mesh->VBO);
                 glBindBuffer(GL_ARRAY_BUFFER, Mesh->VBO[0]);
                 glBufferData(GL_ARRAY_BUFFER, Mesh->VertexCount * sizeof(v3), Mesh->Vertices, Mode);
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
             }
             
             if(Mesh->TextureCoords)
@@ -294,6 +247,8 @@ aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
                 glGenBuffers(1, Mesh->VBO + 1);
                 glBindBuffer(GL_ARRAY_BUFFER, Mesh->VBO[1]);
                 glBufferData(GL_ARRAY_BUFFER, Mesh->VertexCount * sizeof(v2), Mesh->TextureCoords, Mode);
+                glEnableVertexAttribArray(1);
+                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
             }
             
             if(Mesh->Normals)
@@ -301,28 +256,25 @@ aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
                 glGenBuffers(1, Mesh->VBO + 2);
                 glBindBuffer(GL_ARRAY_BUFFER, Mesh->VBO[2]);
                 glBufferData(GL_ARRAY_BUFFER, Mesh->VertexCount * sizeof(v3), Mesh->Normals, Mode);
+                glEnableVertexAttribArray(2);
+                glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
             }
+            glEnableVertexAttribArray(0);
+            glBindVertexArray(0);
         }
+        
     }
 }
 
 extern void
-aglDeleteBuffers(agl_mesh *Mesh)
+aglDelete(agl_drawable *Drawable)
 {
-    for(u32 i=0; i < (sizeof(Mesh->VBO) / sizeof(Mesh->VBO[0])); i++)
-    {
-        glDeleteBuffers(1,  Mesh->VBO + i);
-        if(glGetError() == GL_INVALID_VALUE) printf("vbo delete error: %i\n", i);
-    }
-}
+    if(Drawable->Mesh.Vertices)      aglFree(Drawable->Mesh.Vertices);
+    if(Drawable->Mesh.TextureCoords) aglFree(Drawable->Mesh.TextureCoords);
+    if(Drawable->Mesh.Normals)       aglFree(Drawable->Mesh.Normals);
 
-extern void
-aglMeshDelete(agl_mesh *Mesh)
-{
-    if(Mesh->Vertices)      aglFree(Mesh->Vertices);
-    if(Mesh->TextureCoords) aglFree(Mesh->TextureCoords);
-    if(Mesh->Normals)       aglFree(Mesh->Normals);
-    aglDeleteBuffers(Mesh);
+    glDeleteVertexArrays(1, &Drawable->Mesh.VAO);
+    aglAssert(glGetError() != GL_INVALID_VALUE);
 }
 
 static void
@@ -332,13 +284,17 @@ aglGenQuad(agl_mesh *Mesh, r32 Size)
     u32 TriangleCount = VertexCount / 3;
     r32 XZ = Size / 2.0f;
     r32 Y  = Size;
-   
+
+    Mesh->TextureCoords = 0;
+    
     Mesh->VertexCount = VertexCount;
     Mesh->TriangleCount = TriangleCount;
-    Mesh->Vertices = (v3 *) aglMalloc( sizeof(v3) * VertexCount );
-    Mesh->Normals = (v3 *) aglMalloc( sizeof(v3) * VertexCount );
-    Mesh->TextureCoords = 0;
 
+    Mesh->Vertices = (v3 *) aglMalloc( sizeof(v3) * VertexCount );
+    aglAssert(Mesh->Vertices);
+    Mesh->Normals = (v3 *) aglMalloc( sizeof(v3) * VertexCount );
+    aglAssert(Mesh->Normals);
+    
     // Clockwise vertex definition
     v3 *v = Mesh->Vertices, *n = Mesh->Normals;
     *v++ = {-XZ, 0.0f, XZ}; *v++ = {XZ, Y, XZ}; *v++ = {XZ, 0.0f, XZ};
@@ -367,12 +323,15 @@ aglGenGridFlat(agl_mesh *Mesh, r32 Size, r32 GridWidth, r32 GridHeight)
     u32 VertexCount = (Size * 4) + 4;
     u32 TriangleCount = 0;
 
-    Mesh->VertexCount   = VertexCount;
-    Mesh->TriangleCount = 0;
-    Mesh->Vertices      = (v3 *) aglMalloc( sizeof(v3) * VertexCount );
     Mesh->Normals       = 0;
     Mesh->TextureCoords = 0;
-
+    
+    Mesh->VertexCount   = VertexCount;
+    Mesh->TriangleCount = 0;
+    
+    Mesh->Vertices      = (v3 *) aglMalloc( sizeof(v3) * VertexCount );
+    aglAssert(Mesh->Vertices);
+    
     v3 *v = Mesh->Vertices;
     for(s32 i = 0; i < Size+1; i++)
     {
@@ -415,7 +374,7 @@ aglBeginScene3D(agl_context *Context, agl_camera *Camera)
     if(Camera) aglCameraUpdate(Camera, Context);
     glViewport(0, 0, Context->Width, Context->Height);
 
-    CurrentProjectionMatrix = PerspectiveMatrix(Camera->FoV, (r32)Context->Width / (r32)Context->Height, .1f, 100.0f);
+    CurrentProjectionMatrix = PerspectiveMatrix(Camera->FoV, (r32)Context->Width / (r32)Context->Height, 1.f, 1000.0f);
     CurrentViewMatrix       = aglCameraView(Camera);
 
     ActiveCamera = Camera;
@@ -442,7 +401,7 @@ aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = IdentityMat4x4(), agl_shade
             v3 diffuse = lightColor;
             v3 ambient = diffuse * .5f;
         
-            glUniform3f(Shader->Light[0], ActiveCamera->Position.x, ActiveCamera->Position.y, ActiveCamera->Position.z);
+            glUniform3f(Shader->Light[0], 0.f, 30.f, 0.f);
             glUniform3f(Shader->Light[1], ambient.r, ambient.g, ambient.b);
             glUniform3f(Shader->Light[2], diffuse.r, diffuse.g, diffuse.b);
             glUniform3f(Shader->Light[3], 1.0f, 1.0f, 1.0f);
@@ -461,31 +420,9 @@ aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = IdentityMat4x4(), agl_shade
 
             glUniform3f(Shader->Camera, ActiveCamera->Position.x, ActiveCamera->Position.y, ActiveCamera->Position.z);
 
-            if(Drawable->Mesh.Vertices)
-            {
-                glBindBuffer(GL_ARRAY_BUFFER, Drawable->Mesh.VBO[0]);
-                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(*Drawable->Mesh.Vertices), 0);
-                glEnableVertexAttribArray(0);
-            }
-            if(Drawable->Mesh.TextureCoords)
-            {
-                glBindBuffer(GL_ARRAY_BUFFER, Drawable->Mesh.VBO[1]);
-                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(*Drawable->Mesh.TextureCoords), 0);
-                glEnableVertexAttribArray(1);
-            }
-            if(Drawable->Mesh.Normals)
-            {
-                glBindBuffer(GL_ARRAY_BUFFER, Drawable->Mesh.VBO[2]);
-                glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(*Drawable->Mesh.Normals), 0);
-                glEnableVertexAttribArray(2);
-            }
-
-            // draw
+            glBindVertexArray(Drawable->Mesh.VAO);
             glDrawArrays(Drawable->GLRenderMode, 0, Drawable->Mesh.VertexCount);
-            
-            if(Drawable->Mesh.Vertices)      glDisableVertexAttribArray(0);
-            if(Drawable->Mesh.TextureCoords) glDisableVertexAttribArray(1);
-            if(Drawable->Mesh.Normals)       glDisableVertexAttribArray(2);
+            glBindVertexArray(0);
             
         } else glDrawArrays(Drawable->GLRenderMode, 0, Drawable->Mesh.VertexCount); 
     }
