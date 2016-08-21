@@ -142,9 +142,12 @@ aglCameraInit(agl_camera *Camera, u32 Mode = 0, v3 Position = V3(0, 0, 1),
     Camera->Yaw = Yaw;
     Camera->Pitch = Pitch;
     Camera->FoV = FoV;
+    Camera->Up    = V3i(0,1,0);
+    /*
     Camera->Front = V3(cosf(Camera->Pitch) * sinf(Camera->Yaw), sinf(Camera->Pitch), cosf(Camera->Pitch) * cosf(Camera->Yaw));
     Camera->Right = V3(sinf(Camera->Yaw - M_PI/2.0f), 0, cosf(Camera->Yaw - M_PI/2.0f));
     Camera->Up = CrossV3(Camera->Right, Camera->Front);
+    */
 }
 
 inline void
@@ -160,10 +163,10 @@ aglCameraUpdate(agl_camera *Camera, agl_context *Context)
             if(aglKeyDown('D')) Camera->Position += Camera->Right * Speed;
             if(aglKeyDown('A')) Camera->Position -= Camera->Right * Speed;
 
-            if(Context->MouseInput.Left)
+            if(aglMouseDown(AGL_MOUSE_LEFT))
             {
                 aglPlatformSetCursor(false);
-                Camera->Yaw -= Context->MouseInput.dX * Camera->Sensitivity;
+                Camera->Yaw += Context->MouseInput.dX * Camera->Sensitivity;
                 Camera->Pitch -= Context->MouseInput.dY * Camera->Sensitivity;
             } else aglPlatformSetCursor(true);
         }break;
@@ -174,6 +177,29 @@ aglCameraUpdate(agl_camera *Camera, agl_context *Context)
         case AGL_CAMERA_MODE_TARGET:
         {
             // 
+        }break;
+        case AGL_CAMERA_MODE_FIRSTPERSON:
+        {
+            Camera->FoV -= (aglMouseWheelDelta() * Camera->Sensitivity);
+            if(aglMouseDown(AGL_MOUSE_LEFT))
+            {
+                aglCaptureMouse(true);
+
+                Camera->Yaw += Context->MouseInput.dX * Camera->Sensitivity;
+                Camera->Pitch -= Context->MouseInput.dY * Camera->Sensitivity;
+
+                if(Camera->Pitch < -((M_PI-0.03f)/2)) Camera->Pitch = -((M_PI-0.03f)/2);
+                if(Camera->Pitch > ((M_PI-0.03f)/2))  Camera->Pitch = (M_PI-0.03f)/2;
+
+                
+            } else aglCaptureMouse(false);
+            
+            v3 Forward = NormalizeV3(V3(Camera->Front.x, 0, Camera->Front.z));
+            if(aglKeyDown('W')) Camera->Position += Forward * Speed;
+            if(aglKeyDown('S')) Camera->Position -= Forward * Speed;
+            if(aglKeyDown('D')) Camera->Position += Camera->Right * Speed;
+            if(aglKeyDown('A')) Camera->Position -= Camera->Right * Speed;
+            
         }break;
         default:
         {
@@ -202,9 +228,8 @@ aglCameraView(agl_camera *Camera)
     {
         case AGL_CAMERA_MODE_FREE:
         {
-            Camera->Front = V3(cosf(Camera->Pitch) * sinf(Camera->Yaw), sinf(Camera->Pitch), cosf(Camera->Pitch) * cosf(Camera->Yaw));
-            Camera->Right = V3(sinf(Camera->Yaw - M_PI/2.0f), 0, cosf(Camera->Yaw - M_PI/2.0f));
-            Camera->Up = CrossV3(Camera->Right, Camera->Front);
+            Camera->Front = V3(cosf(Camera->Pitch) * cosf(Camera->Yaw), sinf(Camera->Pitch), cosf(Camera->Pitch) * sinf(Camera->Yaw));
+            Camera->Front = NormalizeV3(Camera->Front);
             Result = LookAtMatrix(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
         }break;
         case AGL_CAMERA_MODE_STATIC:
@@ -214,6 +239,16 @@ aglCameraView(agl_camera *Camera)
         case AGL_CAMERA_MODE_TARGET:
         {
             Result = LookAtMatrix(Camera->Position, *Camera->Target, Camera->Up);
+        }break;
+        case AGL_CAMERA_MODE_FIRSTPERSON:
+        {
+            Camera->Front = V3(cosf(Camera->Pitch) * cosf(Camera->Yaw), sinf(Camera->Pitch), cosf(Camera->Pitch) * sinf(Camera->Yaw));
+            Camera->Front = NormalizeV3(Camera->Front);
+                
+            Camera->Right = V3(cosf(Camera->Yaw + M_PI/2.0f), 0, sinf(Camera->Yaw + M_PI/2.0f));
+            Camera->Right = NormalizeV3(Camera->Right);
+            
+            Result = LookAtMatrix(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
         }break;
         default:
         {
@@ -278,7 +313,7 @@ aglDelete(agl_drawable *Drawable)
 }
 
 static void
-aglGenQuad(agl_mesh *Mesh, r32 Size)
+aglGenCube(agl_mesh *Mesh, r32 Size)
 {
     u32 VertexCount = 36;
     u32 TriangleCount = VertexCount / 3;
@@ -359,12 +394,12 @@ aglPrimitiveGrid(r32 Size = 16.0f, r32 GridWidth = 1.0f, r32 GridHeight = 1.0f)
 }
 
 inline agl_drawable
-aglPrimitiveQuad(r32 Size = 1.0f)
+aglPrimitiveCube(r32 Size = 1.0f)
 {
     agl_drawable Result = {};
     Result.GLRenderMode = GL_TRIANGLES;
     Result.Material = aglMaterial();
-    aglGenQuad(&Result.Mesh, Size);
+    aglGenCube(&Result.Mesh, Size);
     return Result;
 }
 
@@ -374,7 +409,7 @@ aglBeginScene3D(agl_context *Context, agl_camera *Camera)
     if(Camera) aglCameraUpdate(Camera, Context);
     glViewport(0, 0, Context->Width, Context->Height);
 
-    CurrentProjectionMatrix = PerspectiveMatrix(Camera->FoV, (r32)Context->Width / (r32)Context->Height, 1.f, 1000.0f);
+    CurrentProjectionMatrix = PerspectiveMatrix(Camera->FoV, (r32)Context->Width / (r32)Context->Height, .1f, 1000.0f);
     CurrentViewMatrix       = aglCameraView(Camera);
 
     ActiveCamera = Camera;

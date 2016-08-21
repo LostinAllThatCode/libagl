@@ -102,6 +102,13 @@
     PFNGLSAMPLECOVERAGEPROC             glSampleCoverage;
 #endif
 
+enum
+{
+    AGL_MOUSE_LEFT   = 0,
+    AGL_MOUSE_RIGHT  = 1,
+    AGL_MOUSE_MIDDLE = 2,
+};
+
 typedef struct
 {
     s32 Count;
@@ -112,11 +119,11 @@ typedef struct
 {
     agl_key_state Keys[256];
 } agl_keyboad_input;
-    
+
 typedef struct
 {
-    s32 X, Y, dX, dY, Wheel, dWheel;
-    b32 Left, Middle, Right;
+    agl_key_state Buttons[3];
+    s32 X, Y, dX, dY, dWheel;
 } agl_mouse_input;
 
 typedef struct 
@@ -182,6 +189,8 @@ agl_callback_keyup_proc *aglKeyUpCallback;
 
 // $DOC$
 AGLDEF void  aglPlatformBeginFrame();
+// $DOC$
+AGLDEF void  aglPlatformCaptureMouse(b32 Capture);
 // $DOC$
 AGLDEF void  aglPlatformCloseWindow();
 // $DOC$
@@ -307,6 +316,11 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             if(aglKeyUpCallback) aglKeyUpCallback(Key);
             return 0;
         }break;
+        case WM_MOUSEWHEEL:
+        {
+            __agl_Context.MouseInput.dWheel = GET_WHEEL_DELTA_WPARAM(wParam);
+            return 0;
+        }break;
         case WM_MOUSEMOVE:
         {                        
             s32 X = GET_X_LPARAM(lParam);
@@ -317,21 +331,31 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             __agl_Context.MouseInput.Y = Y;
             return 0;
         }break;
-        case WM_MBUTTONUP:
-        case WM_RBUTTONUP:
-        case WM_LBUTTONUP:
-        case WM_MBUTTONDOWN:
-        case WM_RBUTTONDOWN:
-        case WM_LBUTTONDOWN:
+        case WM_MBUTTONUP: { __agl_Context.MouseInput.Buttons[2].EndedDown = true; return 0;}
+        case WM_RBUTTONUP: { __agl_Context.MouseInput.Buttons[1].EndedDown = true; return 0;}
+        case WM_LBUTTONUP: { __agl_Context.MouseInput.Buttons[0].EndedDown = true; return 0;}
+        case WM_MBUTTONDOWN: { __agl_Context.MouseInput.Buttons[2].Count++; return 0;}
+        case WM_RBUTTONDOWN: { __agl_Context.MouseInput.Buttons[1].Count++; return 0;}
+        case WM_LBUTTONDOWN: { __agl_Context.MouseInput.Buttons[0].Count++; return 0;}
+            /*
         {
-            __agl_Context.MouseInput.Left = (wParam & MK_LBUTTON);
-            __agl_Context.MouseInput.Middle = (wParam & MK_MBUTTON);
-            __agl_Context.MouseInput.Right = (wParam & MK_RBUTTON);
+            if(wParam & MK_LBUTTON) 
+            if(wParam & MK_RBUTTON) __agl_Context.MouseInput.Buttons[1].Count++;
+            if(wParam & MK_MBUTTON) __agl_Context.MouseInput.Buttons[2].Count++;          
 
+
+            __agl_Context.MouseInput.Buttons[1].EndedDown = !(wParam & MK_RBUTTON);
+            if(!__agl_Context.MouseInput.Buttons[1].EndedDown) __agl_Context.MouseInput.Buttons[1].Count++;
+
+            __agl_Context.MouseInput.Buttons[2].EndedDown = !(wParam & MK_MBUTTON);
+            if(!__agl_Context.MouseInput.Buttons[2].EndedDown) __agl_Context.MouseInput.Buttons[2].Count++;
+            
             if(wParam & MK_LBUTTON || wParam & MK_MBUTTON || wParam & MK_RBUTTON) SetCapture(__agl_Context.Platform.HWnd);
             if(!(wParam & MK_LBUTTON) && !(wParam & MK_MBUTTON) && !(wParam & MK_RBUTTON)) ReleaseCapture();
+
             return 0;
         }break;
+            */
         case WM_SIZE:
         {
             __agl_Context.Width = LOWORD(lParam);
@@ -679,6 +703,12 @@ AGLDEF void aglPlatformEndFrame() {
 
 AGLDEF b32 aglPlatformIsActive() { return __agl_Context.Active; }
 
+AGLDEF void
+aglPlatformCaptureMouse(b32 Capture)
+{
+    if(Capture) SetCapture(__agl_Context.Platform.HWnd); else ReleaseCapture();
+};
+
 #else // any other platform
 
 #endif
@@ -776,13 +806,24 @@ static b32
 aglHandleEvents()
 {
     // Temporary clear  key states at the end of frame
-    for(s32 i=0; i< 256; i++) {
+    for(s32 i=0; i < 256; i++) {
         agl_key_state *State = __agl_Context.KeyboardInput.Keys + i;
         if(State->EndedDown) {
             State->Count = 0;
             State->EndedDown = false;
         }
     }
+    
+    for(s32 i=0; i < 3; i++) {
+        agl_key_state *State = __agl_Context.MouseInput.Buttons + i;
+        if(State->EndedDown) {
+            State->Count = 0;
+            State->EndedDown = false;
+        }
+    }
+    __agl_Context.MouseInput.dWheel = 0;
+    
+    
     
     aglPlatformEndFrame();
     aglPlatformBeginFrame();
@@ -793,8 +834,13 @@ aglHandleEvents()
 static r32  aglKeyDownTransition(char Key) { return (r32) __agl_Context.KeyboardInput.Keys[Key].Count * __agl_Context.Delta; }
 static b32  aglKeyDown(u8 Key)             { return (!__agl_Context.KeyboardInput.Keys[Key].EndedDown && __agl_Context.KeyboardInput.Keys[Key].Count > 0); }
 static b32  aglKeyUp(u8 Key)               { return __agl_Context.KeyboardInput.Keys[Key].EndedDown; }
-static b32  aglIsActive()                  { return __agl_Context.Active; }
 
+static b32  aglMouseDown(u32 MouseButton)        { return (!__agl_Context.MouseInput.Buttons[MouseButton].EndedDown && __agl_Context.MouseInput.Buttons[MouseButton].Count > 0); }
+static b32  aglMouseUp(u32 MouseButton)          { return __agl_Context.MouseInput.Buttons[MouseButton].EndedDown; }
+static s32  aglMouseWheelDelta()                 { return __agl_Context.MouseInput.dWheel; }
+static void aglCaptureMouse(b32 Capture)         { aglPlatformCaptureMouse(Capture); }
+
+static b32  aglIsActive()                  { return __agl_Context.Active; }
 static void aglSwapBuffers()               { aglPlatformSwapBuffers(); }
 static void aglSetVerticalSync(b32 State)  { aglPlatformSetVerticalSync(State); }
 static void aglToggleFullscreen()          { aglPlatformToggleFullscreen(); }

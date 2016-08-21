@@ -30,16 +30,15 @@ main(int argc, char **argv)
         return 1;
     }    
     
-    agl_drawable Floor = aglPrimitiveQuad();
+    agl_drawable Floor = aglPrimitiveCube();
     Floor.Material = aglMaterial(V3(.8f), V3(.4f), V3(.5f), 1);
     aglGenBuffer(&Floor.Mesh);
 
-    agl_drawable Wall = aglPrimitiveQuad();
+    agl_drawable Wall = aglPrimitiveCube();
     Wall.Material = aglMaterial(V3i(1,1,1), V3(0.1f,0.1f,.1f), V3(.5f), 8);
     aglGenBuffer(&Wall.Mesh);
-
     
-    agl_drawable Quad = aglPrimitiveQuad(4);
+    agl_drawable Quad = aglPrimitiveCube(4);
     Quad.Material.Ambient = V3(.6, .5f, .125f);
     Quad.Material.Diffuse = Quad.Material.Ambient * .5f;
     Quad.Material.Shininess = 80;
@@ -51,9 +50,7 @@ main(int argc, char **argv)
     r32 time_pos = 0;
     v3 Pos = V3(0);
     agl_camera Camera;
-    aglCameraInit(&Camera, AGL_CAMERA_MODE_STATIC, V3i(0, 5, 5), 60.0f, M_PI, -.39f);
-    Camera.Front = V3i(0,0,-7);
-    
+    aglCameraInit(&Camera, AGL_CAMERA_MODE_FIRSTPERSON, V3i(0, 5, 5), 65.0f, -M_PI/2);
 #if 1
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -63,12 +60,11 @@ main(int argc, char **argv)
     u32 CurrentMode = GL_FILL;
     while(aglHandleEvents())
     {
-        sprintf(Title, "dt: %f, fps: %i, time: %.02f, Camera: %.02f/%.02f/%.02f Yaw: %.f, Pitch: %.f \n", Ctx->Delta, Ctx->FPS, Ctx->Time,
-                Camera.Position.x, Camera.Position.y, Camera.Position.z, Camera.Yaw * (360/M_PI), Camera.Pitch * (360/M_PI)); 
+        sprintf(Title, "dt: %f, fps: %i, time: %.02f, Camera: %.02f/%.02f/%.02f, FoV: %.f, Yaw: %.f, Pitch: %.f \n", Ctx->Delta, Ctx->FPS, Ctx->Time,
+                Camera.Position.x, Camera.Position.y, Camera.Position.z, Camera.FoV, Camera.Yaw * (180/M_PI), Camera.Pitch * (180/M_PI)); 
         aglSetWindowTitle(Title);
-        
+       
         if(aglKeyUp(VK_ESCAPE)) aglCloseWindow();
-        
         if(aglKeyUp(VK_F1)) aglSetVerticalSync(!Ctx->VerticalSync);
         if(aglKeyUp(VK_F2))
         {
@@ -81,13 +77,7 @@ main(int argc, char **argv)
             glPolygonMode(GL_FRONT_AND_BACK, CurrentMode);
 
         }
-        if(aglKeyUp(VK_F3))
-        {
-            Camera.Mode = (Camera.Mode == AGL_CAMERA_MODE_FREE ? AGL_CAMERA_MODE_STATIC : AGL_CAMERA_MODE_FREE);
-            if(Camera.Mode == AGL_CAMERA_MODE_STATIC) Camera.Front += Camera.Position;
-        }
-        if(aglKeyUp(VK_F12)) aglToggleFullscreen();   
-
+        if(aglKeyUp(VK_F3)) aglToggleFullscreen(); 
 
         time_pos += Ctx->Delta;
         Quad.Material.Ambient = V3(sin(time_pos * 2.0f), sin(time_pos * .7f), sin(time_pos * 1.3f));

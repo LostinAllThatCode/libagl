@@ -7,6 +7,14 @@
     #include "agl.h"
 #endif
 
+inline r32
+Lerp(r32 A, r32 B, r32 t)
+{
+    r32 Result;
+    Result = A + t*(B-A);
+    return Result;
+}
+
 // NOTE: 2D vector implementation
 union v2
 {
@@ -455,6 +463,14 @@ NormalizeV4(v4 A)
     return(Result);
 }
 
+inline v3
+LerpV3(v3 A, v3 B, r32 t)
+{
+    v3 Result;
+    Result = A + t*(B-A);
+    return Result;
+}
+
 // NOTE: 3x3 and 4x4 matrix implementation (opengl coloum order)
 union mat3x3
 {
@@ -705,7 +721,7 @@ inline mat4x4
 FrustumMatrix(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
 {
     mat4x4 Result = NullMat4x4();
-#if 1
+#if 0
     Result.m0  = (Near * 2.0f) / (Right - Left);
     Result.m5  = (Near * 2.0f) / (Top - Bottom);
     Result.m8  = (Right + Left) / (Right - Left);
