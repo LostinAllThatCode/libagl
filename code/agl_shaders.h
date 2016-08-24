@@ -18,7 +18,7 @@ aglCompileShader(const char *Source, GLenum Type)
             char Info[4096];
             glGetShaderInfoLog(Result, 4096, &Length, Info);
             printf("%s\n", Info);
-            aglAssert(!"Shader compile error");
+            AGL_ASSERT(!"Shader compile error");
         }
     }
     return Result;

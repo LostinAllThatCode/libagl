@@ -6,29 +6,29 @@
     #include <limits.h>
     #include <float.h>
     
-    typedef int8_t   ss8;  
-    typedef int16_t  s16;
-    typedef int32_t  s32;
-    typedef int64_t  s64;
-    typedef uint8_t  u8;
-    typedef uint16_t u16;
-    typedef uint32_t u32;
-    typedef uint64_t u64;
-    typedef s32      b32;
+    typedef int8_t     ss8;  
+    typedef int16_t    s16;
+    typedef int32_t    s32;
+    typedef int64_t    s64;
+    typedef uint8_t    u8;
+    typedef uint16_t   u16;
+    typedef uint32_t   u32;
+    typedef uint64_t   u64;
+    typedef s32        b32;
+                        
+    typedef float      r32;
+    typedef double     r64;
 
-    typedef float r32;
-    typedef double r64;
-
-    typedef intptr_t  intptr;
-    typedef uintptr_t uintptr;
+    typedef intptr_t   intptr;
+    typedef uintptr_t  uintptr;
 
     typedef size_t memory_index;
     #define AGL_INTERNAL_TYPES
 #endif
 
-#if !defined(aglAssert)
+#if !defined(AGL_ASSERT)
     #include <assert.h>
-    #define aglAssert(Condition) assert(Condition)
+    #define AGL_ASSERT(Condition) assert(Condition)
 #endif
 
 #if defined(AGL_EXTERN)
@@ -46,8 +46,27 @@
 #endif
     
 #if _WIN32
+    #define AGLAPI WINAPI
+    #define AGLAPIP AGLAPI *
+
     #include <windows.h>
     #include <windowsx.h>
+
+    typedef BOOL (WINAPI * PFNWGLCHOOSEPIXELFORMATARBPROC) (HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
+    typedef BOOL (WINAPI * PFNWGLSWAPINTERVALEXTPROC) (int interval);
+    typedef int  (WINAPI * PFNWGLGETSWAPINTERVALEXTPROC) (void);
+
+    #define WGL_DRAW_TO_WINDOW_ARB            0x2001
+    #define WGL_ACCELERATION_ARB              0x2003
+    #define WGL_SUPPORT_OPENGL_ARB            0x2010
+    #define WGL_DOUBLE_BUFFER_ARB             0x2011
+    #define WGL_COLOR_BITS_ARB                0x2014
+    #define WGL_ALPHA_BITS_ARB                0x201B
+    #define WGL_DEPTH_BITS_ARB                0x2022
+    #define WGL_STENCIL_BITS_ARB              0x2023
+    #define WGL_FULL_ACCELERATION_ARB         0x2027    
+    #define WGL_SAMPLE_BUFFERS_ARB            0x2041
+    #define WGL_SAMPLES_ARB                   0x2042
 
     typedef struct 
     {
@@ -64,44 +83,173 @@
     } agl_platform_context;
 #endif
 
-#include <GL\GL.h>
-#if !defined(AGL_NO_MODERNGL)
-    #include "glext.h"
-    PFNGLDEBUGMESSAGECALLBACKPROC       glDebugMessageCallback;
-    PFNGLCREATESHADERPROC               glCreateShader;
-    PFNGLDELETESHADERPROC               glDeleteShader;
-    PFNGLSHADERSOURCEPROC               glShaderSource;
-    PFNGLCOMPILESHADERPROC              glCompileShader;
-    PFNGLGETSHADERIVPROC                glGetShader;
-    PFNGLGETSHADERINFOLOGPROC           glGetShaderInfoLog;
-    PFNGLCREATEPROGRAMPROC              glCreateProgram;
-    PFNGLGETPROGRAMIVPROC               glGetProgram;
-    PFNGLGETPROGRAMINFOLOGPROC          glGetProgramInfoLog;
-    PFNGLATTACHSHADERPROC               glAttachShader;
-    PFNGLDETACHSHADERPROC               glDetachShader;
-    PFNGLLINKPROGRAMPROC                glLinkProgram;
-    PFNGLUSEPROGRAMPROC                 glUseProgram;
-    PFNGLACTIVETEXTUREPROC              glActiveTexture;
-    PFNGLGETUNIFORMLOCATIONPROC         glGetUniformLocation;
-    PFNGLUNIFORMMATRIX4FVPROC           glUniformMatrix4f;
-    PFNGLUNIFORM3FPROC                  glUniform3f;
-    PFNGLUNIFORM1FPROC                  glUniform1f;
-    PFNGLGENBUFFERSPROC                 glGenBuffers;
-    PFNGLBINDBUFFERPROC                 glBindBuffer;
-    PFNGLDELETEBUFFERSPROC              glDeleteBuffers;
-    PFNGLBUFFERDATAPROC                 glBufferData;
-    PFNGLGENVERTEXARRAYSPROC            glGenVertexArrays;
-    PFNGLDELETEVERTEXARRAYSPROC         glDeleteVertexArrays;
-    PFNGLBINDVERTEXARRAYPROC            glBindVertexArray;
-    PFNGLENABLEVERTEXATTRIBARRAYPROC    glEnableVertexAttribArray;
-    PFNGLVERTEXATTRIBPOINTERPROC        glVertexAttribPointer;
-    PFNGLDISABLEVERTEXATTRIBARRAYPROC   glDisableVertexAttribArray;
-    PFNGLVERTEXATTRIBDIVISORPROC        glVertexAttribDivisor;
-    PFNGLDRAWARRAYSINSTANCEDPROC        glDrawArraysInstanced;
-    
-    PFNGLSAMPLECOVERAGEPROC             glSampleCoverage;
+// OpenGL initialization 
+#if !defined(AGLAPIP)
+    #define AGLAPIP
 #endif
 
+#include <GL\GL.h>
+
+#define GL_SHADING_LANGUAGE_VERSION                 0x8B8C
+#define GL_MULTISAMPLE_ARB                          0x809D
+#define GL_COMPILE_STATUS                           0x8B81
+#define GL_LINK_STATUS                              0x8B82
+#define GL_FRAGMENT_SHADER                          0x8B30
+#define GL_VERTEX_SHADER                            0x8B31
+                                                    
+#define GL_GENERATE_MIPMAP_HINT                     0x8192
+                                                    
+#ifndef GL_ARB_vertex_buffer_object                 
+#define GL_BUFFER_SIZE_ARB                          0x8764
+#define GL_BUFFER_USAGE_ARB                         0x8765
+#define GL_ARRAY_BUFFER_ARB                         0x8892
+#define GL_ELEMENT_ARRAY_BUFFER_ARB                 0x8893
+#define GL_ARRAY_BUFFER_BINDING_ARB                 0x8894
+#define GL_ELEMENT_ARRAY_BUFFER_BINDING_ARB         0x8895
+#define GL_VERTEX_ARRAY_BUFFER_BINDING_ARB          0x8896
+#define GL_NORMAL_ARRAY_BUFFER_BINDING_ARB          0x8897
+#define GL_COLOR_ARRAY_BUFFER_BINDING_ARB           0x8898
+#define GL_INDEX_ARRAY_BUFFER_BINDING_ARB           0x8899
+#define GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING_ARB   0x889A
+#define GL_EDGE_FLAG_ARRAY_BUFFER_BINDING_ARB       0x889B
+#define GL_SECONDARY_COLOR_ARRAY_BUFFER_BINDING_ARB 0x889C
+#define GL_FOG_COORDINATE_ARRAY_BUFFER_BINDING_ARB  0x889D
+#define GL_WEIGHT_ARRAY_BUFFER_BINDING_ARB          0x889E
+#define GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING_ARB   0x889F
+#define GL_READ_ONLY_ARB                            0x88B8
+#define GL_WRITE_ONLY_ARB                           0x88B9
+#define GL_READ_WRITE_ARB                           0x88BA
+#define GL_BUFFER_ACCESS_ARB                        0x88BB
+#define GL_BUFFER_MAPPED_ARB                        0x88BC
+#define GL_BUFFER_MAP_POINTER_ARB                   0x88BD
+#define GL_STREAM_DRAW_ARB                          0x88E0
+#define GL_STREAM_READ_ARB                          0x88E1
+#define GL_STREAM_COPY_ARB                          0x88E2
+#define GL_STATIC_DRAW_ARB                          0x88E4
+#define GL_STATIC_READ_ARB                          0x88E5
+#define GL_STATIC_COPY_ARB                          0x88E6
+#define GL_DYNAMIC_DRAW_ARB                         0x88E8
+#define GL_DYNAMIC_READ_ARB                         0x88E9
+#define GL_DYNAMIC_COPY_ARB                         0x88EA
+#endif
+
+#include <stddef.h>
+#ifndef GL_VERSION_2_0
+/* GL type for program/shader text */
+typedef char GLchar;
+#endif
+
+#ifndef GL_VERSION_1_5
+/* GL types for handling large vertex buffer objects */
+typedef ptrdiff_t GLintptr;
+typedef ptrdiff_t GLsizeiptr;
+#endif
+
+#ifndef GL_ARB_vertex_buffer_object
+/* GL types for handling large vertex buffer objects */
+typedef ptrdiff_t GLintptrARB;
+typedef ptrdiff_t GLsizeiptrARB;
+#endif
+
+#ifndef GL_ARB_shader_objects
+/* GL types for program/shader text and shader object handles */
+typedef char GLcharARB;
+typedef unsigned int GLhandleARB;
+#endif
+
+typedef GLuint (AGLAPIP PFNGLCREATESHADERPROC) (GLenum type);
+typedef void   (AGLAPIP PFNGLDELETESHADERPROC) (GLuint shader);
+typedef void   (AGLAPIP PFNGLSHADERSOURCEPROC) (GLuint shader, GLsizei count, const GLchar* const *string, const GLint *length);
+typedef void   (AGLAPIP PFNGLCOMPILESHADERPROC) (GLuint shader);
+typedef void   (AGLAPIP PFNGLGETSHADERIVPROC) (GLuint shader, GLenum pname, GLint *params);
+typedef void   (AGLAPIP PFNGLGETSHADERINFOLOGPROC) (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+typedef GLuint (AGLAPIP PFNGLCREATEPROGRAMPROC) (void);
+typedef void   (AGLAPIP PFNGLGETPROGRAMIVPROC) (GLuint program, GLenum pname, GLint *params);
+typedef void   (AGLAPIP PFNGLGETPROGRAMINFOLOGPROC) (GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+typedef void   (AGLAPIP PFNGLATTACHSHADERPROC) (GLuint program, GLuint shader);
+typedef void   (AGLAPIP PFNGLDETACHSHADERPROC) (GLuint program, GLuint shader);
+typedef void   (AGLAPIP PFNGLLINKPROGRAMPROC) (GLuint program);
+typedef void   (AGLAPIP PFNGLUSEPROGRAMPROC) (GLuint program);
+typedef void   (AGLAPIP PFNGLACTIVETEXTUREARBPROC) (GLenum texture);
+typedef GLint  (AGLAPIP PFNGLGETUNIFORMLOCATIONPROC) (GLuint program, const GLchar *name);
+typedef void   (AGLAPIP PFNGLUNIFORMMATRIX3FVPROC) (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void   (AGLAPIP PFNGLUNIFORMMATRIX4FVPROC) (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void   (AGLAPIP PFNGLUNIFORM1FPROC) (GLint location, GLfloat v0);
+typedef void   (AGLAPIP PFNGLUNIFORM2FPROC) (GLint location, GLfloat v0, GLfloat v1);
+typedef void   (AGLAPIP PFNGLUNIFORM3FPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+typedef void   (AGLAPIP PFNGLUNIFORM4FPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+typedef void   (AGLAPIP PFNGLUNIFORM1IPROC) (GLint location, GLint v0);
+typedef void   (AGLAPIP PFNGLUNIFORM2IPROC) (GLint location, GLint v0, GLint v1);
+typedef void   (AGLAPIP PFNGLUNIFORM3IPROC) (GLint location, GLint v0, GLint v1, GLint v2);
+typedef void   (AGLAPIP PFNGLUNIFORM4IPROC) (GLint location, GLint v0, GLint v1, GLint v2, GLint v3);
+typedef void   (AGLAPIP PFNGLGENBUFFERSARBPROC) (GLsizei n, GLuint *buffers);
+typedef void   (AGLAPIP PFNGLBINDBUFFERARBPROC) (GLenum target, GLuint buffer);
+typedef void   (AGLAPIP PFNGLDELETEBUFFERSARBPROC) (GLsizei n, const GLuint *buffers);
+typedef void   (AGLAPIP PFNGLBUFFERDATAARBPROC) (GLenum target, GLsizeiptrARB size, const GLvoid *data, GLenum usage);
+typedef void   (AGLAPIP PFNGLBUFFERSUBDATAARBPROC) (GLenum target, GLintptrARB offset, GLsizeiptrARB size, const GLvoid *data);
+typedef void   (AGLAPIP PFNGLBINDVERTEXARRAYPROC) (GLuint array);
+typedef void   (AGLAPIP PFNGLDELETEVERTEXARRAYSPROC) (GLsizei n, const GLuint *arrays);
+typedef void   (AGLAPIP PFNGLGENVERTEXARRAYSPROC) (GLsizei n, GLuint *arrays);
+typedef void   (AGLAPIP PFNGLENABLEVERTEXATTRIBARRAYARBPROC) (GLuint index);
+typedef void   (AGLAPIP PFNGLDISABLEVERTEXATTRIBARRAYARBPROC) (GLuint index);
+typedef void   (AGLAPIP PFNGLVERTEXATTRIBPOINTERARBPROC) (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
+typedef void   (AGLAPIP PFNGLVERTEXATTRIBDIVISORARBPROC) (GLuint index, GLuint divisor);
+typedef void   (AGLAPIP PFNGLDRAWARRAYSINSTANCEDARBPROC) (GLenum mode, GLint first, GLsizei count, GLsizei primcount);
+typedef void   (AGLAPIP PFNGLGENERATEMIPMAPPROC) (GLenum target);
+
+#if !defined(AGL_NO_GLPROCS)
+    PFNGLCREATESHADERPROC                  glCreateShader;
+    PFNGLDELETESHADERPROC                  glDeleteShader;
+    PFNGLSHADERSOURCEPROC                  glShaderSource;
+    PFNGLCOMPILESHADERPROC                 glCompileShader;
+    PFNGLGETSHADERIVPROC                   glGetShader;
+    PFNGLGETSHADERINFOLOGPROC              glGetShaderInfoLog;
+    PFNGLCREATEPROGRAMPROC                 glCreateProgram;
+    PFNGLGETPROGRAMIVPROC                  glGetProgram;
+    PFNGLGETPROGRAMINFOLOGPROC             glGetProgramInfoLog;
+    PFNGLATTACHSHADERPROC                  glAttachShader;
+    PFNGLDETACHSHADERPROC                  glDetachShader;
+    PFNGLLINKPROGRAMPROC                   glLinkProgram;
+    PFNGLUSEPROGRAMPROC                    glUseProgram;
+    PFNGLACTIVETEXTUREARBPROC              glActiveTexture;
+
+    PFNGLGETUNIFORMLOCATIONPROC            glGetUniformLocation;
+
+    PFNGLUNIFORMMATRIX3FVPROC              glUniformMatrix3fv;
+    PFNGLUNIFORMMATRIX4FVPROC              glUniformMatrix4fv;
+
+    PFNGLUNIFORM4FPROC                     glUniform4f;
+    PFNGLUNIFORM3FPROC                     glUniform3f;
+    PFNGLUNIFORM2FPROC                     glUniform2f;
+    PFNGLUNIFORM1FPROC                     glUniform1f;
+
+    PFNGLUNIFORM4IPROC                     glUniform4i;
+    PFNGLUNIFORM3IPROC                     glUniform3i;
+    PFNGLUNIFORM2IPROC                     glUniform2i;
+    PFNGLUNIFORM1IPROC                     glUniform1i;
+
+    PFNGLGENBUFFERSARBPROC                 glGenBuffers;
+    PFNGLBINDBUFFERARBPROC                 glBindBuffer;
+    PFNGLBUFFERDATAARBPROC                 glBufferData;
+    PFNGLBUFFERSUBDATAARBPROC              glBufferSubData;
+    PFNGLDELETEBUFFERSARBPROC              glDeleteBuffers; 
+
+    PFNGLGENVERTEXARRAYSPROC               glGenVertexArrays;
+    PFNGLDELETEVERTEXARRAYSPROC            glDeleteVertexArrays;
+    PFNGLBINDVERTEXARRAYPROC               glBindVertexArray;
+
+    PFNGLENABLEVERTEXATTRIBARRAYARBPROC    glEnableVertexAttribArray;
+    PFNGLVERTEXATTRIBPOINTERARBPROC        glVertexAttribPointer;
+    PFNGLDISABLEVERTEXATTRIBARRAYARBPROC   glDisableVertexAttribArray;
+
+    PFNGLGENERATEMIPMAPPROC                glGenerateMipmap;
+
+    PFNGLVERTEXATTRIBDIVISORARBPROC        glVertexAttribDivisor;
+    PFNGLDRAWARRAYSINSTANCEDARBPROC        glDrawArraysInstanced;
+#endif
+
+
+// libAGL initialization
 enum
 {
     AGL_MOUSE_LEFT   = 0,
@@ -164,21 +312,22 @@ typedef struct
 } agl_context;
 agl_context __agl_Context; // global context to get access to static functions like win32 messageproc
 
+
 // NOTE: Define functions in your code base to get callback messages for the following callback functions.
 //
 //       Example: void MyKeyDownFunc(char Key) { //Your custom code here };
 //       In the mainloop before aglCreateWindow() call use aglCallbackKeyDown(MyKeyDownFunc);
 //       Now you will get key down messages send to your custom function.
 
-typedef void (APIENTRY agl_callback_resize_proc) (int width, int height);
+typedef void (AGLAPI agl_callback_resize_proc) (int width, int height);
 agl_callback_resize_proc *aglResizeCallback;
 #define aglCallbackResize(f) aglResizeCallback = f
 
-typedef void (APIENTRY agl_callback_keydown_proc) (char Key);
+typedef void (AGLAPI agl_callback_keydown_proc) (char Key);
 agl_callback_keydown_proc *aglKeyDownCallback;
 #define aglCallbackKeyDown(f) aglKeyDownCallback = f
 
-typedef void (APIENTRY agl_callback_keyup_proc) (char Key);
+typedef void (AGLAPI agl_callback_keyup_proc) (char Key);
 agl_callback_keyup_proc *aglKeyUpCallback;
 #define aglCallbackKeyUp(f) aglKeyUpCallback = f
 
@@ -218,9 +367,213 @@ AGLDEF void  aglPlatformSwapBuffers();
 // $DOC$
 AGLDEF void  aglPlatformToggleFullscreen();
 
+// NOTE: General api code for handling the window and opengl context.
+static void *
+aglGetProcAddress(char *Function)
+{
+    void *Result = aglPlatformGetProcAddress(Function);
+    AGL_ASSERT(Result);
+    return Result;
+}
+
+static b32
+aglInitModernGLImpl()
+{
+#if defined(AGL_NO_GLPROCS)
+    return true;
+#else
+    b32 Result = false;
+    if(*aglGetProcAddress)
+    {
+        glCreateShader                     = (PFNGLCREATESHADERPROC)                aglGetProcAddress("glCreateShader");
+        glDeleteShader                     = (PFNGLDELETESHADERPROC)                aglGetProcAddress("glDeleteShader");
+        glShaderSource                     = (PFNGLSHADERSOURCEPROC)                aglGetProcAddress("glShaderSource");
+        glCompileShader                    = (PFNGLCOMPILESHADERPROC)               aglGetProcAddress("glCompileShader");
+        glGetShader                        = (PFNGLGETSHADERIVPROC)                 aglGetProcAddress("glGetShaderiv");
+        glGetShaderInfoLog                 = (PFNGLGETSHADERINFOLOGPROC)            aglGetProcAddress("glGetShaderInfoLog");
+        glCreateProgram                    = (PFNGLCREATEPROGRAMPROC)               aglGetProcAddress("glCreateProgram");
+        glGetProgram                       = (PFNGLGETPROGRAMIVPROC)                aglGetProcAddress("glGetProgramiv");
+        glGetProgramInfoLog                = (PFNGLGETPROGRAMINFOLOGPROC)           aglGetProcAddress("glGetProgramInfoLog");
+        glAttachShader                     = (PFNGLATTACHSHADERPROC)                aglGetProcAddress("glAttachShader");
+        glDetachShader                     = (PFNGLDETACHSHADERPROC)                aglGetProcAddress("glDetachShader");
+        glLinkProgram                      = (PFNGLLINKPROGRAMPROC)                 aglGetProcAddress("glLinkProgram");
+        glUseProgram                       = (PFNGLUSEPROGRAMPROC)                  aglGetProcAddress("glUseProgram");
+                                                                                    
+        glActiveTexture                    = (PFNGLACTIVETEXTUREARBPROC)            aglGetProcAddress("glActiveTexture");
+                                                                                    
+        glGetUniformLocation               = (PFNGLGETUNIFORMLOCATIONPROC)          aglGetProcAddress("glGetUniformLocation");
+        
+        glUniformMatrix4fv                 = (PFNGLUNIFORMMATRIX4FVPROC)            aglGetProcAddress("glUniformMatrix4fv");
+        glUniformMatrix3fv                 = (PFNGLUNIFORMMATRIX3FVPROC)            aglGetProcAddress("glUniformMatrix3fv");
+        
+        glUniform4f                        = (PFNGLUNIFORM4FPROC)                   aglGetProcAddress("glUniform4f");
+        glUniform3f                        = (PFNGLUNIFORM3FPROC)                   aglGetProcAddress("glUniform3f");
+        glUniform2f                        = (PFNGLUNIFORM2FPROC)                   aglGetProcAddress("glUniform2f");
+        glUniform1f                        = (PFNGLUNIFORM1FPROC)                   aglGetProcAddress("glUniform1f");
+        
+        glUniform4i                        = (PFNGLUNIFORM4IPROC)                   aglGetProcAddress("glUniform4i");
+        glUniform3i                        = (PFNGLUNIFORM3IPROC)                   aglGetProcAddress("glUniform3i");
+        glUniform2i                        = (PFNGLUNIFORM2IPROC)                   aglGetProcAddress("glUniform2i");
+        glUniform1i                        = (PFNGLUNIFORM1IPROC)                   aglGetProcAddress("glUniform1i");
+        
+        glGenBuffers                       = (PFNGLGENBUFFERSARBPROC)               aglGetProcAddress("glGenBuffersARB");
+        glBindBuffer                       = (PFNGLBINDBUFFERARBPROC)               aglGetProcAddress("glBindBufferARB");
+        glDeleteBuffers                    = (PFNGLDELETEBUFFERSARBPROC)            aglGetProcAddress("glDeleteBuffersARB");
+        glBufferData                       = (PFNGLBUFFERDATAARBPROC)               aglGetProcAddress("glBufferDataARB");
+        glBufferSubData                    = (PFNGLBUFFERSUBDATAARBPROC)            aglGetProcAddress("glBufferSubDataARB");
+        glGenVertexArrays                  = (PFNGLGENVERTEXARRAYSPROC)             aglGetProcAddress("glGenVertexArrays");
+        glDeleteVertexArrays               = (PFNGLDELETEVERTEXARRAYSPROC)          aglGetProcAddress("glDeleteVertexArrays");
+        glBindVertexArray                  = (PFNGLBINDVERTEXARRAYPROC)             aglGetProcAddress("glBindVertexArray");
+        glEnableVertexAttribArray          = (PFNGLENABLEVERTEXATTRIBARRAYARBPROC)  aglGetProcAddress("glEnableVertexAttribArrayARB");
+        glVertexAttribPointer              = (PFNGLVERTEXATTRIBPOINTERARBPROC)      aglGetProcAddress("glVertexAttribPointerARB");
+        glDisableVertexAttribArray         = (PFNGLDISABLEVERTEXATTRIBARRAYARBPROC) aglGetProcAddress("glDisableVertexAttribArrayARB");
+
+        glVertexAttribDivisor              = (PFNGLVERTEXATTRIBDIVISORARBPROC)      aglGetProcAddress("glVertexAttribDivisorARB");
+        glDrawArraysInstanced              = (PFNGLDRAWARRAYSINSTANCEDARBPROC)      aglGetProcAddress("glDrawArraysInstancedARB");
+        
+        glGenerateMipmap                   = (PFNGLGENERATEMIPMAPPROC)              aglGetProcAddress("glGenerateMipmap");
+        
+        Result = true;
+    }
+    return Result;
+#endif
+}
+
+static agl_context *
+aglCreateWindow(char *Title = "agl default window", s32 Width = 1024, s32 Height = 768, u32 Settings = 0)
+{
+    __agl_Context.Width = Width;
+    __agl_Context.Height = Height;
+    __agl_Context.EnableMSAA = ((Settings & AGL_WINDOW_MSAA) != 0 ? true : false );
+    __agl_Context.VerticalSync = ((Settings & AGL_WINDOW_VSYNC) != 0 ? true : false );
+    
+    if(aglPlatformCreateWindow(Title) && __agl_Context.GLContext)
+    {
+        __agl_Context.GLInfo.Vendor = (u8 *)glGetString(GL_VENDOR);
+        __agl_Context.GLInfo.Renderer = (u8 *)glGetString(GL_RENDERER);
+        __agl_Context.GLInfo.Version = (u8 *)glGetString(GL_VERSION);
+        __agl_Context.GLInfo.ShadingLanguageVersion = (u8 *) glGetString(GL_SHADING_LANGUAGE_VERSION);
+        __agl_Context.GLInfo.Extensions = (u8 *)glGetString(GL_EXTENSIONS);
+        
+        __agl_Context.Running = aglInitModernGLImpl();
+        aglPlatformBeginFrame();
+        if(Settings & AGL_WINDOW_FULLSCREEN) aglPlatformToggleFullscreen();
+        if(__agl_Context.EnableMSAA) glEnable(GL_MULTISAMPLE_ARB); else glDisable(GL_MULTISAMPLE_ARB);
+        return &__agl_Context;
+    }
+    return 0;
+}
+
+static void
+aglCloseWindow()
+{
+    aglPlatformCloseWindow();
+};
+
+static b32
+aglHandleEvents()
+{
+    // Temporary clear  key states at the end of frame
+    for(s32 i=0; i < 256; i++) {
+        agl_key_state *State = __agl_Context.KeyboardInput.Keys + i;
+        if(State->EndedDown) {
+            State->Count = 0;
+            State->EndedDown = false;
+        }
+    }
+    
+    for(s32 i=0; i < 3; i++) {
+        agl_key_state *State = __agl_Context.MouseInput.Buttons + i;
+        if(State->EndedDown) {
+            State->Count = 0;
+            State->EndedDown = false;
+        }
+    }
+    __agl_Context.MouseInput.dWheel = 0;
+    
+    aglPlatformEndFrame();
+    aglPlatformBeginFrame();
+    aglPlatformHandleEvents();
+    return __agl_Context.Running;
+}
+
+static r32
+aglKeyDownTransition(char Key)
+{
+    return (r32) __agl_Context.KeyboardInput.Keys[Key].Count * __agl_Context.Delta;
+}
+
+static b32
+aglKeyDown(u8 Key)
+{
+    return (!__agl_Context.KeyboardInput.Keys[Key].EndedDown && __agl_Context.KeyboardInput.Keys[Key].Count > 0);
+}
+
+static b32
+aglKeyUp(u8 Key)
+{
+    return __agl_Context.KeyboardInput.Keys[Key].EndedDown;
+}
+
+static b32
+aglMouseDown(u32 MouseButton)
+{
+    return (!__agl_Context.MouseInput.Buttons[MouseButton].EndedDown && __agl_Context.MouseInput.Buttons[MouseButton].Count > 0);
+}
+
+static b32
+aglMouseUp(u32 MouseButton)
+{
+    return __agl_Context.MouseInput.Buttons[MouseButton].EndedDown;
+}
+
+static s32
+aglMouseWheelDelta()
+{
+    return __agl_Context.MouseInput.dWheel;
+}
+
+static void
+aglCaptureMouse(b32 Capture)
+{
+    aglPlatformCaptureMouse(Capture);
+}
+
+static b32
+aglIsActive()
+{
+    return __agl_Context.Active;
+}
+
+static void
+aglSwapBuffers()
+{
+    aglPlatformSwapBuffers();
+}
+
+static void
+aglSetVerticalSync(b32 State)
+{
+    aglPlatformSetVerticalSync(State);
+}
+static void
+aglToggleFullscreen()
+{
+    aglPlatformToggleFullscreen();
+}
+
+static void
+aglSetWindowTitle(char * Title)
+{
+    aglPlatformSetWindowTitle(Title);
+}
+static void
+aglCleanup()
+{
+    aglPlatformDestroyWindow();
+}
 
 #if defined(_WIN32) && defined(AGL_IMPLEMENTATION)
-#include "wglext.h"
 
 AGLDEF void * aglPlatformGetProcAddress(char *Function) { return wglGetProcAddress(Function); }
 
@@ -712,140 +1065,6 @@ aglPlatformCaptureMouse(b32 Capture)
 #else // any other platform
 
 #endif
-
-// NOTE: General api code for handling the window and opengl context.
-static void *
-aglGetProcAddress(char *Function)
-{
-    void *Result = aglPlatformGetProcAddress(Function);
-    aglAssert(Result);
-    return Result;
-}
-
-static b32
-aglInitModernGLImpl()
-{
-#if defined(AGL_NO_MODERNGL)
-    return true;
-#else
-    b32 Result = false;
-    if(*aglGetProcAddress)
-    {
-        glDebugMessageCallback             = (PFNGLDEBUGMESSAGECALLBACKPROC)     aglGetProcAddress("glDebugMessageCallback");
-        
-        glCreateShader                     = (PFNGLCREATESHADERPROC)             aglGetProcAddress("glCreateShader");
-        glDeleteShader                     = (PFNGLDELETESHADERPROC)             aglGetProcAddress("glDeleteShader");
-        glShaderSource                     = (PFNGLSHADERSOURCEPROC)             aglGetProcAddress("glShaderSource");
-        glCompileShader                    = (PFNGLCOMPILESHADERPROC)            aglGetProcAddress("glCompileShader");
-        glGetShader                        = (PFNGLGETSHADERIVPROC)              aglGetProcAddress("glGetShaderiv");
-        glGetShaderInfoLog                 = (PFNGLGETSHADERINFOLOGPROC)         aglGetProcAddress("glGetShaderInfoLog");
-        glCreateProgram                    = (PFNGLCREATEPROGRAMPROC)            aglGetProcAddress("glCreateProgram");
-        glGetProgram                       = (PFNGLGETPROGRAMIVPROC)             aglGetProcAddress("glGetProgramiv");
-        glGetProgramInfoLog                = (PFNGLGETPROGRAMINFOLOGPROC)        aglGetProcAddress("glGetProgramInfoLog");
-        glAttachShader                     = (PFNGLATTACHSHADERPROC)             aglGetProcAddress("glAttachShader");
-        glDetachShader                     = (PFNGLDETACHSHADERPROC)             aglGetProcAddress("glDetachShader");
-        glLinkProgram                      = (PFNGLLINKPROGRAMPROC)              aglGetProcAddress("glLinkProgram");
-        glUseProgram                       = (PFNGLUSEPROGRAMPROC)               aglGetProcAddress("glUseProgram");
-
-        glActiveTexture                    = (PFNGLACTIVETEXTUREPROC)            aglGetProcAddress("glActiveTexture");
-
-        glGetUniformLocation               = (PFNGLGETUNIFORMLOCATIONPROC)       aglGetProcAddress("glGetUniformLocation");
-        glUniformMatrix4f                  = (PFNGLUNIFORMMATRIX4FVPROC)         aglGetProcAddress("glUniformMatrix4fv");
-        glUniform3f                        = (PFNGLUNIFORM3FPROC)                aglGetProcAddress("glUniform3f");
-        glUniform1f                        = (PFNGLUNIFORM1FPROC)                aglGetProcAddress("glUniform1f");
-        glGenBuffers                       = (PFNGLGENBUFFERSPROC)               aglGetProcAddress("glGenBuffers");
-        glBindBuffer                       = (PFNGLBINDBUFFERPROC)               aglGetProcAddress("glBindBuffer");
-        glDeleteBuffers                    = (PFNGLDELETEBUFFERSPROC)            aglGetProcAddress("glDeleteBuffers");
-        glBufferData                       = (PFNGLBUFFERDATAPROC)               aglGetProcAddress("glBufferData");
-        glGenVertexArrays                  = (PFNGLGENVERTEXARRAYSPROC)          aglGetProcAddress("glGenVertexArrays");
-        glDeleteVertexArrays               = (PFNGLDELETEVERTEXARRAYSPROC)       aglGetProcAddress("glDeleteVertexArrays");
-        glBindVertexArray                  = (PFNGLBINDVERTEXARRAYPROC)          aglGetProcAddress("glBindVertexArray");
-        glEnableVertexAttribArray          = (PFNGLENABLEVERTEXATTRIBARRAYPROC)  aglGetProcAddress("glEnableVertexAttribArray");
-        glVertexAttribPointer              = (PFNGLVERTEXATTRIBPOINTERPROC)      aglGetProcAddress("glVertexAttribPointer");
-        glDisableVertexAttribArray         = (PFNGLDISABLEVERTEXATTRIBARRAYPROC) aglGetProcAddress("glDisableVertexAttribArray");
-
-        glVertexAttribDivisor              = (PFNGLVERTEXATTRIBDIVISORPROC)      aglGetProcAddress("glVertexAttribDivisor");
-        glDrawArraysInstanced              = (PFNGLDRAWARRAYSINSTANCEDPROC)      aglGetProcAddress("glDrawArraysInstanced");
-
-        glSampleCoverage                   = (PFNGLSAMPLECOVERAGEPROC)          aglGetProcAddress("glSampleCoverage");
-        
-        Result = true;
-    }
-    return Result;
-#endif
-}
-
-static agl_context *
-aglCreateWindow(char *Title = "agl default window", s32 Width = 1024, s32 Height = 768, u32 Settings = 0)
-{
-    __agl_Context.Width = Width;
-    __agl_Context.Height = Height;
-    __agl_Context.EnableMSAA = ((Settings & AGL_WINDOW_MSAA) != 0 ? true : false );
-    __agl_Context.VerticalSync = ((Settings & AGL_WINDOW_VSYNC) != 0 ? true : false );
-    
-    if(aglPlatformCreateWindow(Title) && __agl_Context.GLContext)
-    {
-        __agl_Context.GLInfo.Vendor = (u8 *)glGetString(GL_VENDOR);
-        __agl_Context.GLInfo.Renderer = (u8 *)glGetString(GL_RENDERER);
-        __agl_Context.GLInfo.Version = (u8 *)glGetString(GL_VERSION);
-        __agl_Context.GLInfo.ShadingLanguageVersion = (u8 *) glGetString(GL_SHADING_LANGUAGE_VERSION);
-        __agl_Context.GLInfo.Extensions = (u8 *)glGetString(GL_EXTENSIONS);
-        
-        __agl_Context.Running = aglInitModernGLImpl();
-        aglPlatformBeginFrame();
-        if(Settings & AGL_WINDOW_FULLSCREEN) aglPlatformToggleFullscreen();
-        if(__agl_Context.EnableMSAA) glEnable(GL_MULTISAMPLE); else glDisable(GL_MULTISAMPLE);
-        return &__agl_Context;
-    }
-    return 0;
-}
-
-static void aglCloseWindow() { aglPlatformCloseWindow(); };
-
-static b32
-aglHandleEvents()
-{
-    // Temporary clear  key states at the end of frame
-    for(s32 i=0; i < 256; i++) {
-        agl_key_state *State = __agl_Context.KeyboardInput.Keys + i;
-        if(State->EndedDown) {
-            State->Count = 0;
-            State->EndedDown = false;
-        }
-    }
-    
-    for(s32 i=0; i < 3; i++) {
-        agl_key_state *State = __agl_Context.MouseInput.Buttons + i;
-        if(State->EndedDown) {
-            State->Count = 0;
-            State->EndedDown = false;
-        }
-    }
-    __agl_Context.MouseInput.dWheel = 0;
-    
-    
-    
-    aglPlatformEndFrame();
-    aglPlatformBeginFrame();
-    aglPlatformHandleEvents();
-    return __agl_Context.Running;
-}
-
-static r32  aglKeyDownTransition(char Key) { return (r32) __agl_Context.KeyboardInput.Keys[Key].Count * __agl_Context.Delta; }
-static b32  aglKeyDown(u8 Key)             { return (!__agl_Context.KeyboardInput.Keys[Key].EndedDown && __agl_Context.KeyboardInput.Keys[Key].Count > 0); }
-static b32  aglKeyUp(u8 Key)               { return __agl_Context.KeyboardInput.Keys[Key].EndedDown; }
-
-static b32  aglMouseDown(u32 MouseButton)        { return (!__agl_Context.MouseInput.Buttons[MouseButton].EndedDown && __agl_Context.MouseInput.Buttons[MouseButton].Count > 0); }
-static b32  aglMouseUp(u32 MouseButton)          { return __agl_Context.MouseInput.Buttons[MouseButton].EndedDown; }
-static s32  aglMouseWheelDelta()                 { return __agl_Context.MouseInput.dWheel; }
-static void aglCaptureMouse(b32 Capture)         { aglPlatformCaptureMouse(Capture); }
-
-static b32  aglIsActive()                  { return __agl_Context.Active; }
-static void aglSwapBuffers()               { aglPlatformSwapBuffers(); }
-static void aglSetVerticalSync(b32 State)  { aglPlatformSetVerticalSync(State); }
-static void aglToggleFullscreen()          { aglPlatformToggleFullscreen(); }
-static void aglSetWindowTitle(char * Title){ aglPlatformSetWindowTitle(Title); }
-static void aglCleanup()                   { aglPlatformDestroyWindow(); }
 
 #define AGL_H
 #endif
