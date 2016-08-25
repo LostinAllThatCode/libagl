@@ -6,6 +6,8 @@
 #define AGL_USE_STB_TRUETYPE
 #include "agl_core3d.h"
 
+#define RDTSC_BEGIN unsigned __int64 __time; __time = __rdtsc()
+#define RDTSC_END unsigned __int64 __current = __rdtsc()
 
 void
 InitGL()
@@ -43,7 +45,6 @@ main(int argc, char **argv)
     if(!Ctx) return 0;
     InitGL();
 
-
     agl_shader DefShader = aglInitDefaultShader();
     if(!DefShader.Success)
     {
@@ -78,7 +79,7 @@ main(int argc, char **argv)
     char TextBuffer[512];
     u32 CurrentMode = GL_FILL;
     while(aglHandleEvents())
-    {       
+    {
         if(aglKeyUp(VK_ESCAPE)) aglCloseWindow();
         if(aglKeyUp(VK_F1)) aglSetVerticalSync(!Ctx->VerticalSync);
         if(aglKeyUp(VK_F2))
@@ -95,8 +96,9 @@ main(int argc, char **argv)
         if(aglKeyUp(VK_F3)) aglToggleFullscreen(); 
 
         time_pos += Ctx->Delta;
-        Quad.Material.Ambient = V3(sin(time_pos * 2.0f), sin(time_pos * .7f), sin(time_pos * 1.3f));
-        Quad.Material.Diffuse = Quad.Material.Ambient * .4f;
+        Wall.Material.Ambient = V3(sin(time_pos * 2.0f), sin(time_pos * .7f), sin(time_pos * 1.3f));
+        Wall.Material.Diffuse = Quad.Material.Ambient * .4f;
+        
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         aglBeginScene3D(Ctx, &Camera);
@@ -113,14 +115,19 @@ main(int argc, char **argv)
 
         glDisable(GL_CULL_FACE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        sprintf(TextBuffer, "[Cursor] X:%i, Y:%i [Camera] X:%i, Y:%i, Z:%i, FoV:%i, Yaw:%i, Pitch:%i",
-                Ctx->MouseInput.X, Ctx->MouseInput.Y,
+
+        
+        sprintf(TextBuffer, "[ SYSTEM ] FPS:%i, dt:%f, Ticks: %I64d", Ctx->FPS, Ctx->Delta, Ctx->Ticks);      
+        aglRenderText2D(FontConsola, TextBuffer, 10, 12, V3i(0,0,0));
+        sprintf(TextBuffer, "[ CAMERA ] X:%i, Y:%i, Z:%i, FoV:%i, Yaw:%i, Pitch:%i",
                 (s32) Camera.Position.x, (s32) Camera.Position.y, (s32) Camera.Position.z,
                 (s32) Camera.FoV, (s32) (Camera.Yaw * (180/M_PI)), (s32) (Camera.Pitch * (180/M_PI)));
-        aglRenderText2D(FontConsola, TextBuffer, 10, 10, V3i(0,0,0));
+        aglRenderText2D(FontConsola, TextBuffer, 10, 24, V3i(0,0,0));        
+        sprintf(TextBuffer, "[ CURSOR ] X:%i, Y:%i", Ctx->MouseInput.X, Ctx->MouseInput.Y);
+        aglRenderText2D(FontConsola, TextBuffer, 10, 36, V3i(0,0,0));        
+
         glPolygonMode(GL_FRONT_AND_BACK, CurrentMode);
         glEnable(GL_CULL_FACE);
-        
         aglSwapBuffers();
     }
 

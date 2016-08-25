@@ -74,6 +74,7 @@
         HDC               DC;
         WINDOWPLACEMENT   Placement;
         LARGE_INTEGER     FrameBegin, FrameEnd, Frequency;
+        __int64           TickBegin, TickEnd;
     } agl_platform_context;
 #else
     // Define this for other platform support
@@ -291,13 +292,14 @@ enum
 };
 
 typedef struct
-{
+{    
     b32                  Running;
     b32                  Active;
     s32                  Width;
     s32                  Height;
     s32                  FPS;
     s32                  TargetFPS;
+    s64                  Ticks;
     r32                  Delta;
     r32                  Time;
     b32                  VerticalSync;
@@ -841,7 +843,7 @@ aglPlatformInitMultisample(HINSTANCE hInstance,HWND hWnd,PIXELFORMATDESCRIPTOR p
             WGL_STENCIL_BITS_ARB,0,
             WGL_DOUBLE_BUFFER_ARB,GL_TRUE,
             WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
-            WGL_SAMPLES_ARB, 8,
+            WGL_SAMPLES_ARB, 4,
             0,0
         };
 
@@ -991,8 +993,6 @@ aglPlatformCreateWindow(char *Title)
         }       
         
     }
-
-    aglPlatformSetVerticalSync(__agl_Context.VerticalSync);
     
     if(__agl_Context.EnableMSAA && !__agl_Context.MultisampleSupported)
     {
@@ -1001,7 +1001,9 @@ aglPlatformCreateWindow(char *Title)
             aglPlatformDestroyWindow();
             return aglPlatformCreateWindow(Title);
         }
-    }   
+    }
+
+    aglPlatformSetVerticalSync(__agl_Context.VerticalSync);
     
 	ShowWindow(__agl_Context.Platform.HWnd, SW_SHOW);						// Show The Window
 	SetForegroundWindow(__agl_Context.Platform.HWnd);						// Slightly Higher Priority
@@ -1016,10 +1018,8 @@ aglPlatformSetVerticalSync(b32 State)
 {
     PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapInterval = (PFNWGLGETSWAPINTERVALEXTPROC) wglGetProcAddress("wglGetSwapIntervalEXT");
     PFNWGLSWAPINTERVALEXTPROC wglSwapInterval = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress("wglSwapIntervalEXT");
-    if(__agl_Context.GLContext && wglSwapInterval && (wglGetSwapInterval() != State)) {
-        wglSwapInterval(State);
-        __agl_Context.VerticalSync = wglGetSwapInterval();
-    }       
+    if(__agl_Context.GLContext && wglSwapInterval) wglSwapInterval(State);
+    if(wglGetSwapInterval) __agl_Context.VerticalSync = wglGetSwapInterval();
 }
 
 AGLDEF void aglPlatformSwapBuffers()
@@ -1033,28 +1033,32 @@ AGLDEF void aglPlatformSetWindowTitle(char *Title) { SetWindowText(__agl_Context
 
 AGLDEF void aglPlatformBeginFrame()
 {
+    __agl_Context.Platform.TickBegin = __rdtsc();
     QueryPerformanceCounter(&__agl_Context.Platform.FrameBegin);
 };
 
 AGLDEF void aglPlatformEndFrame() {
-    if(!__agl_Context.VerticalSync)
-    {
-        QueryPerformanceCounter(&__agl_Context.Platform.FrameEnd);
-        __agl_Context.Delta = ((r32) (__agl_Context.Platform.FrameEnd.QuadPart - __agl_Context.Platform.FrameBegin.QuadPart) / (r32) __agl_Context.Platform.Frequency.QuadPart);
-        __agl_Context.FPS = 1.0f / __agl_Context.Delta;
-        __agl_Context.Time += __agl_Context.Delta;
-    }
-    else
-    {
-        __agl_Context.Delta = 1.0f / 60.f;
-        __agl_Context.FPS = (u32) 60.f;
-        __agl_Context.Time += __agl_Context.Delta;    
-    }
+    __agl_Context.Platform.TickEnd = __rdtsc();
+    QueryPerformanceCounter(&__agl_Context.Platform.FrameEnd);
+    
+    LARGE_INTEGER ElapsedTime;
+    ElapsedTime.QuadPart = __agl_Context.Platform.FrameEnd.QuadPart - __agl_Context.Platform.FrameBegin.QuadPart;
+    ElapsedTime.QuadPart *= 1000000;
+    ElapsedTime.QuadPart /= __agl_Context.Platform.Frequency.QuadPart;
+
+    __agl_Context.Ticks = __agl_Context.Platform.TickEnd - __agl_Context.Platform.TickBegin;
+    __agl_Context.Delta = ElapsedTime.QuadPart / 1000000.0f;
+    __agl_Context.FPS = 1.0f / __agl_Context.Delta;
+    __agl_Context.Time += __agl_Context.Delta;
+
     __agl_Context.MouseInput.dX = 0;
     __agl_Context.MouseInput.dY = 0;
 };
 
-AGLDEF b32 aglPlatformIsActive() { return __agl_Context.Active; }
+AGLDEF b32 aglPlatformIsActive()
+{
+    return __agl_Context.Active;
+}
 
 AGLDEF void
 aglPlatformCaptureMouse(b32 Capture)

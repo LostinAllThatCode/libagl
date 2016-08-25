@@ -40,7 +40,7 @@
            2 = mainTex
            3 = fontColor
            4 = render2D
-           5 = dim2D
+           5 = renderInfo
         */  
     } agl_shader_text;
 
@@ -673,7 +673,7 @@ aglInitFontShader()
             in vec2 texCoord0;
 
             uniform bool render2D = false;
-            uniform vec2 dim2D;
+            uniform vec4 renderInfo;
             
             uniform mat4 worldMatrix;
             uniform mat4 viewProjMatrix;
@@ -686,8 +686,10 @@ aglInitFontShader()
             {
                 if(render2D)
                 {
-                    vec2 halfdim = dim2D/2;
+                    vec2 halfdim = vec2(renderInfo.x, renderInfo.y)/2;
                     vec2 pos = vec2(position) - halfdim;
+                    pos.x += renderInfo.z;
+                    pos.y += renderInfo.w;
                     pos /= halfdim;
                     gl_Position = vec4(pos.x,pos.y,0,1);
                 }
@@ -729,7 +731,7 @@ aglInitFontShader()
     Shader->Uniforms[2] = glGetUniformLocation(Shader->Id, "mainTex");
     Shader->Uniforms[3] = glGetUniformLocation(Shader->Id, "fontColor");
     Shader->Uniforms[4] = glGetUniformLocation(Shader->Id, "render2D");
-    Shader->Uniforms[5] = glGetUniformLocation(Shader->Id, "dim2D");
+    Shader->Uniforms[5] = glGetUniformLocation(Shader->Id, "renderInfo");
     
     glGenBuffers(1, Shader->VBO);
     glBindBuffer(GL_ARRAY_BUFFER_ARB, Shader->VBO[0]);
@@ -852,8 +854,8 @@ aglRenderText2D(agl_font *Font, char *Text,
                             *c - AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER,
                             &OffsetX, &OffsetY, &Quad, 1);
 
-        *v++ = {Quad.x0 + X, -Quad.y1 + Y, 0 }; *v++ = {Quad.x0 + X, -Quad.y0 + Y, 0};
-        *v++ = {Quad.x1 + X,  -Quad.y0 + Y , 0}; *v++ = {Quad.x1 + X, -Quad.y1 + Y, 0};
+        *v++ = {Quad.x0, -Quad.y1, 0 }; *v++ = {Quad.x0, -Quad.y0, 0};
+        *v++ = {Quad.x1,  -Quad.y0 , 0}; *v++ = {Quad.x1, -Quad.y1, 0};
 
         *t++ = {Quad.s0, Quad.t1}; *t++ = {Quad.s0, Quad.t0};
         *t++ = {Quad.s1, Quad.t0}; *t++ = {Quad.s1, Quad.t1};
@@ -865,13 +867,11 @@ aglRenderText2D(agl_font *Font, char *Text,
     }
 
     glUseProgram(FontRenderingShader->Id);
-    
 
     glBindTexture(GL_TEXTURE_2D, Font->Texture);
     glUniform1i(FontRenderingShader->Uniforms[2], 0);
-    glUniform4f(FontRenderingShader->Uniforms[3], Color.r, Color.g, Color.b, Alpha);
     glUniform1i(FontRenderingShader->Uniforms[4], 1);
-    glUniform2f(FontRenderingShader->Uniforms[5], __agl_Context.Width, __agl_Context.Height);
+    glUniform4f(FontRenderingShader->Uniforms[5], __agl_Context.Width, __agl_Context.Height, X+1, Y-1);
     
     glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->VBO[0]);
     glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v3), 0, GL_DYNAMIC_DRAW_ARB);
@@ -887,6 +887,11 @@ aglRenderText2D(agl_font *Font, char *Text,
     glBufferData(GL_ELEMENT_ARRAY_BUFFER_ARB, IndexCount * sizeof(u16), 0, GL_DYNAMIC_DRAW_ARB);
     glBufferSubData(GL_ELEMENT_ARRAY_BUFFER_ARB, 0, IndexCount * sizeof(u16), idata);
 
+    glUniform4f(FontRenderingShader->Uniforms[3], (u8) (255 - (u8)Color.r), (u8) (255 - (u8)Color.g), (u8) (255 - (u8)Color.b), Alpha);
+    glDrawElements(GL_TRIANGLES, IndexCount, GL_UNSIGNED_SHORT, 0);
+    
+    glUniform4f(FontRenderingShader->Uniforms[5], __agl_Context.Width, __agl_Context.Height, X, Y);
+    glUniform4f(FontRenderingShader->Uniforms[3], Color.r, Color.g, Color.b, Alpha);    
     glDrawElements(GL_TRIANGLES, IndexCount, GL_UNSIGNED_SHORT, 0);
     
     glDisableVertexAttribArray(1);
