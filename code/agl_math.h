@@ -3,10 +3,6 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#ifndef AGL_H
-    #include "agl.h"
-#endif
-
 inline r32
 Lerp(r32 A, r32 B, r32 t)
 {

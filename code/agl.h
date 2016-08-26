@@ -73,8 +73,8 @@
         HWND              HWnd;
         HDC               DC;
         WINDOWPLACEMENT   Placement;
-        LARGE_INTEGER     FrameBegin, FrameEnd, Frequency;
-        __int64           TickBegin, TickEnd;
+        BOOL              TimerInit;              
+        LARGE_INTEGER     Init, Frequency;
     } agl_platform_context;
 #else
     // Define this for other platform support
@@ -158,6 +158,7 @@ typedef char GLcharARB;
 typedef unsigned int GLhandleARB;
 #endif
 
+/* Modern GL functions for shader, vbo/ibo, mipmapping ... support */
 typedef GLuint (AGLAPIP PFNGLCREATESHADERPROC) (GLenum type);
 typedef void   (AGLAPIP PFNGLDELETESHADERPROC) (GLuint shader);
 typedef void   (AGLAPIP PFNGLSHADERSOURCEPROC) (GLuint shader, GLsizei count, const GLchar* const *string, const GLint *length);
@@ -199,81 +200,62 @@ typedef void   (AGLAPIP PFNGLDRAWARRAYSINSTANCEDARBPROC) (GLenum mode, GLint fir
 typedef void   (AGLAPIP PFNGLGENERATEMIPMAPPROC) (GLenum target);
 
 #if !defined(AGL_NO_GLPROCS)
-    PFNGLCREATESHADERPROC                  glCreateShader;
-    PFNGLDELETESHADERPROC                  glDeleteShader;
-    PFNGLSHADERSOURCEPROC                  glShaderSource;
-    PFNGLCOMPILESHADERPROC                 glCompileShader;
-    PFNGLGETSHADERIVPROC                   glGetShader;
-    PFNGLGETSHADERINFOLOGPROC              glGetShaderInfoLog;
-    PFNGLCREATEPROGRAMPROC                 glCreateProgram;
-    PFNGLGETPROGRAMIVPROC                  glGetProgram;
-    PFNGLGETPROGRAMINFOLOGPROC             glGetProgramInfoLog;
-    PFNGLATTACHSHADERPROC                  glAttachShader;
-    PFNGLDETACHSHADERPROC                  glDetachShader;
-    PFNGLLINKPROGRAMPROC                   glLinkProgram;
-    PFNGLUSEPROGRAMPROC                    glUseProgram;
-    PFNGLACTIVETEXTUREARBPROC              glActiveTexture;
-
-    PFNGLGETUNIFORMLOCATIONPROC            glGetUniformLocation;
-
-    PFNGLUNIFORMMATRIX3FVPROC              glUniformMatrix3fv;
-    PFNGLUNIFORMMATRIX4FVPROC              glUniformMatrix4fv;
-
-    PFNGLUNIFORM4FPROC                     glUniform4f;
-    PFNGLUNIFORM3FPROC                     glUniform3f;
-    PFNGLUNIFORM2FPROC                     glUniform2f;
-    PFNGLUNIFORM1FPROC                     glUniform1f;
-
-    PFNGLUNIFORM4IPROC                     glUniform4i;
-    PFNGLUNIFORM3IPROC                     glUniform3i;
-    PFNGLUNIFORM2IPROC                     glUniform2i;
-    PFNGLUNIFORM1IPROC                     glUniform1i;
-
-    PFNGLGENBUFFERSARBPROC                 glGenBuffers;
-    PFNGLBINDBUFFERARBPROC                 glBindBuffer;
-    PFNGLBUFFERDATAARBPROC                 glBufferData;
-    PFNGLBUFFERSUBDATAARBPROC              glBufferSubData;
-    PFNGLDELETEBUFFERSARBPROC              glDeleteBuffers; 
-
-    PFNGLGENVERTEXARRAYSPROC               glGenVertexArrays;
-    PFNGLDELETEVERTEXARRAYSPROC            glDeleteVertexArrays;
-    PFNGLBINDVERTEXARRAYPROC               glBindVertexArray;
-
-    PFNGLENABLEVERTEXATTRIBARRAYARBPROC    glEnableVertexAttribArray;
-    PFNGLVERTEXATTRIBPOINTERARBPROC        glVertexAttribPointer;
-    PFNGLDISABLEVERTEXATTRIBARRAYARBPROC   glDisableVertexAttribArray;
-
-    PFNGLGENERATEMIPMAPPROC                glGenerateMipmap;
-
-    PFNGLVERTEXATTRIBDIVISORARBPROC        glVertexAttribDivisor;
-    PFNGLDRAWARRAYSINSTANCEDARBPROC        glDrawArraysInstanced;
+PFNGLCREATESHADERPROC                  glCreateShader;
+PFNGLDELETESHADERPROC                  glDeleteShader;
+PFNGLSHADERSOURCEPROC                  glShaderSource;
+PFNGLCOMPILESHADERPROC                 glCompileShader;
+PFNGLGETSHADERIVPROC                   glGetShader;
+PFNGLGETSHADERINFOLOGPROC              glGetShaderInfoLog;
+PFNGLCREATEPROGRAMPROC                 glCreateProgram;
+PFNGLGETPROGRAMIVPROC                  glGetProgram;
+PFNGLGETPROGRAMINFOLOGPROC             glGetProgramInfoLog;
+PFNGLATTACHSHADERPROC                  glAttachShader;
+PFNGLDETACHSHADERPROC                  glDetachShader;
+PFNGLLINKPROGRAMPROC                   glLinkProgram;
+PFNGLUSEPROGRAMPROC                    glUseProgram;
+PFNGLACTIVETEXTUREARBPROC              glActiveTexture;
+PFNGLGETUNIFORMLOCATIONPROC            glGetUniformLocation;
+PFNGLUNIFORMMATRIX3FVPROC              glUniformMatrix3fv;
+PFNGLUNIFORMMATRIX4FVPROC              glUniformMatrix4fv;
+PFNGLUNIFORM4FPROC                     glUniform4f;
+PFNGLUNIFORM3FPROC                     glUniform3f;
+PFNGLUNIFORM2FPROC                     glUniform2f;
+PFNGLUNIFORM1FPROC                     glUniform1f;
+PFNGLUNIFORM4IPROC                     glUniform4i;
+PFNGLUNIFORM3IPROC                     glUniform3i;
+PFNGLUNIFORM2IPROC                     glUniform2i;
+PFNGLUNIFORM1IPROC                     glUniform1i;
+PFNGLGENBUFFERSARBPROC                 glGenBuffers;
+PFNGLBINDBUFFERARBPROC                 glBindBuffer;
+PFNGLBUFFERDATAARBPROC                 glBufferData;
+PFNGLBUFFERSUBDATAARBPROC              glBufferSubData;
+PFNGLDELETEBUFFERSARBPROC              glDeleteBuffers; 
+PFNGLGENVERTEXARRAYSPROC               glGenVertexArrays;
+PFNGLDELETEVERTEXARRAYSPROC            glDeleteVertexArrays;
+PFNGLBINDVERTEXARRAYPROC               glBindVertexArray;
+PFNGLENABLEVERTEXATTRIBARRAYARBPROC    glEnableVertexAttribArray;
+PFNGLVERTEXATTRIBPOINTERARBPROC        glVertexAttribPointer;
+PFNGLDISABLEVERTEXATTRIBARRAYARBPROC   glDisableVertexAttribArray;
+PFNGLGENERATEMIPMAPPROC                glGenerateMipmap;
+PFNGLVERTEXATTRIBDIVISORARBPROC        glVertexAttribDivisor;
+PFNGLDRAWARRAYSINSTANCEDARBPROC        glDrawArraysInstanced;
 #endif
 
-
 // libAGL initialization
-enum
-{
-    AGL_MOUSE_LEFT   = 0,
-    AGL_MOUSE_RIGHT  = 1,
-    AGL_MOUSE_MIDDLE = 2,
-};
+
 
 typedef struct
 {
     s32 Count;
     b32 EndedDown;
 } agl_key_state;
-    
+
+enum { AGL_MOUSE_LEFT = 0, AGL_MOUSE_RIGHT = 1, AGL_MOUSE_MIDDLE = 2 };
 typedef struct 
 {
-    agl_key_state Keys[256];
-} agl_keyboad_input;
-
-typedef struct
-{
-    agl_key_state Buttons[3];
-    s32 X, Y, dX, dY, dWheel;
-} agl_mouse_input;
+    agl_key_state Keys[256], Buttons[3];
+    s32 MouseX, MouseY, MouseXDelta, MouseYDelta, MouseWheelDelta;
+} agl_input;
 
 typedef struct 
 {
@@ -298,18 +280,21 @@ typedef struct
     s32                  Width;
     s32                  Height;
     s32                  FPS;
-    s32                  TargetFPS;
-    s64                  Ticks;
+
+    
     r32                  Delta;
-    r32                  Time;
+    u32                  FrameCount;
+    u32                  StartTime;
+    u32                  TicksLastFrame;
+
     b32                  VerticalSync;
     b32                  EnableMSAA;
     b32                  MultisampleSupported;
     s32                  MultisampleFormat;
     HGLRC                GLContext;
     agl_opengl_info      GLInfo;
-    agl_keyboad_input    KeyboardInput;
-    agl_mouse_input      MouseInput;
+    agl_input            Input;
+//    agl_mouse_input      MouseInput;
     agl_platform_context Platform;
 } agl_context;
 agl_context __agl_Context; // global context to get access to static functions like win32 messageproc
@@ -339,8 +324,6 @@ agl_callback_keyup_proc *aglKeyUpCallback;
 //       to __agl_Context, otherwise this api won't do anything.
 
 // $DOC$
-AGLDEF void  aglPlatformBeginFrame();
-// $DOC$
 AGLDEF void  aglPlatformCaptureMouse(b32 Capture);
 // $DOC$
 AGLDEF void  aglPlatformCloseWindow();
@@ -348,8 +331,6 @@ AGLDEF void  aglPlatformCloseWindow();
 AGLDEF b32   aglPlatformCreateWindow(char *Title);
 // $DOC$
 AGLDEF void  aglPlatformDestroyWindow();
-// $DOC$
-AGLDEF void  aglPlatformEndFrame();
 // $DOC$
 AGLDEF void* aglPlatformGetProcAddress(char *Function);
 // $DOC$
@@ -368,6 +349,8 @@ AGLDEF void  aglPlatformSetWindowTitle(char *Title);
 AGLDEF void  aglPlatformSwapBuffers();
 // $DOC$
 AGLDEF void  aglPlatformToggleFullscreen();
+
+AGLDEF u32   aglPlatformGetTicks();
 
 // NOTE: General api code for handling the window and opengl context.
 static void *
@@ -451,14 +434,13 @@ aglCreateWindow(char *Title = "agl default window", s32 Width = 1024, s32 Height
     
     if(aglPlatformCreateWindow(Title) && __agl_Context.GLContext)
     {
-        __agl_Context.GLInfo.Vendor = (u8 *)glGetString(GL_VENDOR);
-        __agl_Context.GLInfo.Renderer = (u8 *)glGetString(GL_RENDERER);
-        __agl_Context.GLInfo.Version = (u8 *)glGetString(GL_VERSION);
+        __agl_Context.GLInfo.Vendor                 = (u8 *) glGetString(GL_VENDOR);
+        __agl_Context.GLInfo.Renderer               = (u8 *) glGetString(GL_RENDERER);
+        __agl_Context.GLInfo.Version                = (u8 *) glGetString(GL_VERSION);
         __agl_Context.GLInfo.ShadingLanguageVersion = (u8 *) glGetString(GL_SHADING_LANGUAGE_VERSION);
-        __agl_Context.GLInfo.Extensions = (u8 *)glGetString(GL_EXTENSIONS);
+        __agl_Context.GLInfo.Extensions             = (u8 *) glGetString(GL_EXTENSIONS);
         
-        __agl_Context.Running = aglInitModernGLImpl();
-        aglPlatformBeginFrame();
+        __agl_Context.Running                       = aglInitModernGLImpl();
         if(Settings & AGL_WINDOW_FULLSCREEN) aglPlatformToggleFullscreen();
         if(__agl_Context.EnableMSAA) glEnable(GL_MULTISAMPLE_ARB); else glDisable(GL_MULTISAMPLE_ARB);
         return &__agl_Context;
@@ -475,9 +457,21 @@ aglCloseWindow()
 static b32
 aglHandleEvents()
 {
-    // Temporary clear  key states at the end of frame
+    __agl_Context.FrameCount++;
+    u32 Now = aglPlatformGetTicks();
+    r32 dTime = (Now - __agl_Context.StartTime) / 1000.f;
+    if(__agl_Context.FrameCount > 29)
+    {
+        __agl_Context.FPS = __agl_Context.FrameCount / (dTime);
+        __agl_Context.FrameCount = 0;
+        __agl_Context.StartTime = Now;
+    }
+    
+    __agl_Context.Delta = (Now - __agl_Context.TicksLastFrame) / 1000.f;;
+    __agl_Context.TicksLastFrame = Now;
+    
     for(s32 i=0; i < 256; i++) {
-        agl_key_state *State = __agl_Context.KeyboardInput.Keys + i;
+        agl_key_state *State = __agl_Context.Input.Keys + i;
         if(State->EndedDown) {
             State->Count = 0;
             State->EndedDown = false;
@@ -485,16 +479,13 @@ aglHandleEvents()
     }
     
     for(s32 i=0; i < 3; i++) {
-        agl_key_state *State = __agl_Context.MouseInput.Buttons + i;
+        agl_key_state *State = __agl_Context.Input.Buttons + i;
         if(State->EndedDown) {
             State->Count = 0;
             State->EndedDown = false;
         }
     }
-    __agl_Context.MouseInput.dWheel = 0;
     
-    aglPlatformEndFrame();
-    aglPlatformBeginFrame();
     aglPlatformHandleEvents();
     return __agl_Context.Running;
 }
@@ -502,37 +493,37 @@ aglHandleEvents()
 static r32
 aglKeyDownTransition(char Key)
 {
-    return (r32) __agl_Context.KeyboardInput.Keys[Key].Count * __agl_Context.Delta;
+    return (r32) __agl_Context.Input.Keys[Key].Count * __agl_Context.Delta;
 }
 
 static b32
 aglKeyDown(u8 Key)
 {
-    return (!__agl_Context.KeyboardInput.Keys[Key].EndedDown && __agl_Context.KeyboardInput.Keys[Key].Count > 0);
+    return (!__agl_Context.Input.Keys[Key].EndedDown && __agl_Context.Input.Keys[Key].Count > 0);
 }
 
 static b32
 aglKeyUp(u8 Key)
 {
-    return __agl_Context.KeyboardInput.Keys[Key].EndedDown;
+    return __agl_Context.Input.Keys[Key].EndedDown;
 }
 
 static b32
 aglMouseDown(u32 MouseButton)
 {
-    return (!__agl_Context.MouseInput.Buttons[MouseButton].EndedDown && __agl_Context.MouseInput.Buttons[MouseButton].Count > 0);
+    return (!__agl_Context.Input.Buttons[MouseButton].EndedDown && __agl_Context.Input.Buttons[MouseButton].Count > 0);
 }
 
 static b32
 aglMouseUp(u32 MouseButton)
 {
-    return __agl_Context.MouseInput.Buttons[MouseButton].EndedDown;
+    return __agl_Context.Input.Buttons[MouseButton].EndedDown;
 }
 
 static s32
 aglMouseWheelDelta()
 {
-    return __agl_Context.MouseInput.dWheel;
+    return __agl_Context.Input.MouseWheelDelta;
 }
 
 static void
@@ -611,6 +602,10 @@ aglPlatformToggleFullscreen()
 AGLDEF void
 aglPlatformHandleEvents()
 {
+    __agl_Context.Input.MouseXDelta = 0;
+    __agl_Context.Input.MouseYDelta = 0;
+    __agl_Context.Input.MouseWheelDelta = 0;
+    
     MSG msg;
     while(PeekMessage(&msg, 0, 0, 0, PM_REMOVE) && __agl_Context.Running)
     {
@@ -657,7 +652,7 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         case WM_KEYDOWN:
         {
             u8 Key = (u8) wParam;
-            agl_key_state *State = __agl_Context.KeyboardInput.Keys + Key;
+            agl_key_state *State = __agl_Context.Input.Keys + Key;
             State->Count++;
             State->EndedDown = false;
             if(aglKeyDownCallback) aglKeyDownCallback(Key);
@@ -666,44 +661,44 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         case WM_KEYUP:								// Has A Key Been Released?
         {
             u8 Key = (u8) wParam;
-            agl_key_state *State = __agl_Context.KeyboardInput.Keys + Key;
+            agl_key_state *State = __agl_Context.Input.Keys + Key;
             State->EndedDown = true;
             if(aglKeyUpCallback) aglKeyUpCallback(Key);
             return 0;
         }break;
         case WM_MOUSEWHEEL:
         {
-            __agl_Context.MouseInput.dWheel = GET_WHEEL_DELTA_WPARAM(wParam);
+            __agl_Context.Input.MouseWheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
             return 0;
         }break;
         case WM_MOUSEMOVE:
         {                        
             s32 X = GET_X_LPARAM(lParam);
             s32 Y = GET_Y_LPARAM(lParam);
-            __agl_Context.MouseInput.dX = X - __agl_Context.MouseInput.X;
-            __agl_Context.MouseInput.dY = Y - __agl_Context.MouseInput.Y;
-            __agl_Context.MouseInput.X = X;
-            __agl_Context.MouseInput.Y = Y;
+            __agl_Context.Input.MouseXDelta = X - __agl_Context.Input.MouseX;
+            __agl_Context.Input.MouseYDelta = Y - __agl_Context.Input.MouseY;
+            __agl_Context.Input.MouseX = X;
+            __agl_Context.Input.MouseY = Y;
             return 0;
         }break;
-        case WM_MBUTTONUP: { __agl_Context.MouseInput.Buttons[2].EndedDown = true; return 0;}
-        case WM_RBUTTONUP: { __agl_Context.MouseInput.Buttons[1].EndedDown = true; return 0;}
-        case WM_LBUTTONUP: { __agl_Context.MouseInput.Buttons[0].EndedDown = true; return 0;}
-        case WM_MBUTTONDOWN: { __agl_Context.MouseInput.Buttons[2].Count++; return 0;}
-        case WM_RBUTTONDOWN: { __agl_Context.MouseInput.Buttons[1].Count++; return 0;}
-        case WM_LBUTTONDOWN: { __agl_Context.MouseInput.Buttons[0].Count++; return 0;}
+        case WM_MBUTTONUP: { __agl_Context.Input.Buttons[2].EndedDown = true; return 0;}
+        case WM_RBUTTONUP: { __agl_Context.Input.Buttons[1].EndedDown = true; return 0;}
+        case WM_LBUTTONUP: { __agl_Context.Input.Buttons[0].EndedDown = true; return 0;}
+        case WM_MBUTTONDOWN: { __agl_Context.Input.Buttons[2].Count++; return 0;}
+        case WM_RBUTTONDOWN: { __agl_Context.Input.Buttons[1].Count++; return 0;}
+        case WM_LBUTTONDOWN: { __agl_Context.Input.Buttons[0].Count++; return 0;}
             /*
         {
             if(wParam & MK_LBUTTON) 
-            if(wParam & MK_RBUTTON) __agl_Context.MouseInput.Buttons[1].Count++;
-            if(wParam & MK_MBUTTON) __agl_Context.MouseInput.Buttons[2].Count++;          
+            if(wParam & MK_RBUTTON) __agl_Context.Input.Buttons[1].Count++;
+            if(wParam & MK_MBUTTON) __agl_Context.Input.Buttons[2].Count++;          
 
 
-            __agl_Context.MouseInput.Buttons[1].EndedDown = !(wParam & MK_RBUTTON);
-            if(!__agl_Context.MouseInput.Buttons[1].EndedDown) __agl_Context.MouseInput.Buttons[1].Count++;
+            __agl_Context.Input.Buttons[1].EndedDown = !(wParam & MK_RBUTTON);
+            if(!__agl_Context.Input.Buttons[1].EndedDown) __agl_Context.Input.Buttons[1].Count++;
 
-            __agl_Context.MouseInput.Buttons[2].EndedDown = !(wParam & MK_MBUTTON);
-            if(!__agl_Context.MouseInput.Buttons[2].EndedDown) __agl_Context.MouseInput.Buttons[2].Count++;
+            __agl_Context.Input.Buttons[2].EndedDown = !(wParam & MK_MBUTTON);
+            if(!__agl_Context.Input.Buttons[2].EndedDown) __agl_Context.Input.Buttons[2].Count++;
             
             if(wParam & MK_LBUTTON || wParam & MK_MBUTTON || wParam & MK_RBUTTON) SetCapture(__agl_Context.Platform.HWnd);
             if(!(wParam & MK_LBUTTON) && !(wParam & MK_MBUTTON) && !(wParam & MK_RBUTTON)) ReleaseCapture();
@@ -720,6 +715,23 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }break;
     }
 	return DefWindowProc(hWnd,uMsg,wParam,lParam);
+}
+
+AGLDEF u32
+aglPlatformGetTicks()
+{
+    if (!__agl_Context.Platform.TimerInit) {
+        QueryPerformanceFrequency(&__agl_Context.Platform.Frequency);
+        QueryPerformanceCounter(&__agl_Context.Platform.Init);
+        __agl_Context.Platform.TimerInit = true;
+    }
+    
+    LARGE_INTEGER Now;
+    QueryPerformanceCounter(&Now);
+    Now.QuadPart -= __agl_Context.Platform.Init.QuadPart;
+    Now.QuadPart *= 1000;
+    Now.QuadPart /= __agl_Context.Platform.Frequency.QuadPart;
+    return (u32) Now.QuadPart;
 }
 
 AGLDEF void
@@ -1008,8 +1020,6 @@ aglPlatformCreateWindow(char *Title)
 	ShowWindow(__agl_Context.Platform.HWnd, SW_SHOW);						// Show The Window
 	SetForegroundWindow(__agl_Context.Platform.HWnd);						// Slightly Higher Priority
     SetFocus(__agl_Context.Platform.HWnd);									// Sets Keyboard Focus To The Window
-    
-    QueryPerformanceFrequency(&__agl_Context.Platform.Frequency);
     return true;
 }
 
@@ -1030,7 +1040,7 @@ AGLDEF void aglPlatformSwapBuffers()
 
 AGLDEF void aglPlatformCloseWindow() { DestroyWindow(__agl_Context.Platform.HWnd); }
 AGLDEF void aglPlatformSetWindowTitle(char *Title) { SetWindowText(__agl_Context.Platform.HWnd, Title); }
-
+#if 0
 AGLDEF void aglPlatformBeginFrame()
 {
     __agl_Context.Platform.TickBegin = __rdtsc();
@@ -1051,10 +1061,10 @@ AGLDEF void aglPlatformEndFrame() {
     __agl_Context.FPS = 1.0f / __agl_Context.Delta;
     __agl_Context.Time += __agl_Context.Delta;
 
-    __agl_Context.MouseInput.dX = 0;
-    __agl_Context.MouseInput.dY = 0;
+    __agl_Context.Input.MouseXDelta = 0;
+    __agl_Context.Input.dY = 0;
 };
-
+#endif
 AGLDEF b32 aglPlatformIsActive()
 {
     return __agl_Context.Active;

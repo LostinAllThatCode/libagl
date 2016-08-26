@@ -1,32 +1,44 @@
 #if !defined(AGL_CORE3D_H)
 
-#include "agl_math.h"
-
-#if !defined(AGL_MALLOC) || !defined(AGL_FREE)
-    #include <stdlib.h>
-    #define AGL_MALLOC(s) malloc(s)
-    #define AGL_FREE(v) free(v)
+#if !defined(AGL_H)
+#error "agl.h needs to be included to use this library"
 #endif
 
-#if defined(AGL_USE_STB_TRUETYPE)
-    #define STB_TRUETYPE_IMPLEMENTATION
-    #include "stb_truetype.h"
+#include "agl_math.h"
 
-    #define AGL_TRUETYPE_DEFAULT_TEXT_SIZE       48
-    #define AGL_TRUETYPE_DEFAULT_TEXTURE_SIZE    1024
-    #define AGL_TRUETYPE_DEFAULT_CHARACTERS      95
-    #define AGL_TRUETYPE_DEFAULT_OVERSAMPLES     2
-    #define AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER 32
-    typedef struct
-    {
-        u32 FontSize;
-        u32 Width;
-        u32 Height;
-        u32 OverSampleX;
-        u32 OverSampleY;
-        stbtt_packedchar CharacterInfo[AGL_TRUETYPE_DEFAULT_CHARACTERS];
-        u32 Texture;
-    } agl_font;
+#if !defined(AGL_MALLOC) && !defined(AGL_FREE)
+    #include <stdlib.h>
+    #define AGL_MALLOC(Type, Size) (Type *) malloc(Size)
+    #define AGL_FREE(Address, Size) free(Address)
+#endif
+
+#if defined(STB_TRUETYPE_IMPLEMENTATION)
+#define AGL_TRUETYPE_DEFAULT_TEXT_SIZE       48
+#define AGL_TRUETYPE_DEFAULT_TEXTURE_SIZE    1024
+#define AGL_TRUETYPE_DEFAULT_CHARACTERS      95
+#define AGL_TRUETYPE_DEFAULT_OVERSAMPLES     2
+#define AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER 32
+
+typedef struct
+{
+    u32 FontSize;
+    u32 Width;
+    u32 Height;
+    u32 OverSampleX;
+    u32 OverSampleY;
+    stbtt_packedchar CharacterInfo[AGL_TRUETYPE_DEFAULT_CHARACTERS];
+    u32 Texture;
+} agl_ttf_font;
+#endif
+
+#define AGL_CORE3D_OBJECTS_MAX 1024
+#define AGL_CORE3D_SHADER_BINDINGS_MAX 16
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
     typedef struct
     {
@@ -43,6 +55,7 @@
            5 = renderInfo
         */  
     } agl_shader_text;
+    agl_shader_text *FontRenderingShader;
 
     typedef struct
     {
@@ -50,11 +63,6 @@
         u32 VBO[3];
         s32 IndexCount;
     } agl_render_text;
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
     
     enum
     {
@@ -95,12 +103,47 @@ extern "C" {
 
     typedef struct
     {
+        s32          ID;
         agl_mesh     Mesh;
         agl_material Material;
         s32          GLRenderMode; // GL_TRIANGLES, GL_QUADS, GL_POINTS, ...
     } agl_drawable;
+    agl_drawable *__agl_Objects[AGL_CORE3D_OBJECTS_MAX];
+    s32 __agl_ObjectCounter;
 
+    // TODO: Need a general way to handle shaders
+    //       - Bind uniforms before rendering (Maybe predeclare which name maps to a pointer, which maps to binding id?)
     #include "agl_shaders.h"
+    enum {
+        AGL_SHADER_TYPE_MATRIX4, AGL_SHADER_TYPE_MATRIX3,
+        AGL_SHADER_TYPE_VECTOR4, AGL_SHADER_TYPE_VECTOR3, AGL_SHADER_TYPE_VECTOR2,
+        AGL_SHADER_TYPE_FLOAT, AGL_SHADER_TYPE_INTEGER, AGL_SHADER_TYPE_BOOLEAN,
+    };
+
+    typedef struct
+    {
+        u32 Type;
+        u32 UniformID;
+        union
+        {
+            mat4x4 *Matrix4;
+            mat3x3 *Matrix3;
+            v4 *Vector4;
+            v3 *Vector3;
+            v2 *Vector2;
+            r32 *Float;
+            s32 *Integer;
+            b32 *Boolean;
+        };
+    } agl_shader_uniform_binding;
+           
+    typedef struct
+    {
+        s32 Id;
+        s32 BindingCount;
+        agl_shader_uniform_binding Bindings[AGL_CORE3D_SHADER_BINDINGS_MAX];
+    } agl_shader_ext;
+    
     typedef struct
     {
         b32 Success;
@@ -132,7 +175,6 @@ extern "C" {
         */
     } agl_shader;
     
-    
 #ifdef __cplusplus
 }
 #endif
@@ -141,7 +183,6 @@ r32 LastUpdateTime;
 s32 MaterialIndexCount;
 mat4x4 CurrentProjectionMatrix, CurrentViewMatrix;
 agl_camera *ActiveCamera;
-agl_shader_text *FontRenderingShader;
 
 inline agl_shader
 aglInitDefaultShader()
@@ -178,10 +219,33 @@ aglInitDefaultShader()
     return Result;
 }
 
+static b32 aglShaderSetBinding(agl_shader_ext *Shader, char *Uniform, u32 ShaderType, void *Address)
+{
+    if(!Shader || !Address) return false;
+    b32 Result = false;
+    switch(ShaderType)
+    {
+        case AGL_SHADER_TYPE_MATRIX4:
+        {
+            u32 UniformID = glGetUniformLocation(Shader->Id, Uniform);
+            //if(glGetError()) break;
+
+            agl_shader_uniform_binding * Binding = Shader->Bindings + Shader->BindingCount++;
+            Binding->Type = ShaderType;
+            Binding->UniformID = UniformID;
+            Binding->Matrix4 = (mat4x4 *) Address;
+            
+            Result = true;
+        } break;
+    }
+    return Result;
+}
+    
+    
 extern void
 aglCameraInit(agl_camera *Camera, s32 Mode = 0, v3 Position = V3(0, 0, 1),
               r32 FoV = 45.0f, r32 Yaw = -M_PI/2, r32 Pitch = 0.0f,
-              r32 Speed = 6.0f, r32 Sensitivity = 0.005f)
+              r32 Speed = 6.0f, r32 Sensitivity = 0.0025f)
 {
     Camera->Mode = Mode;
     Camera->Position = Position;  
@@ -191,85 +255,75 @@ aglCameraInit(agl_camera *Camera, s32 Mode = 0, v3 Position = V3(0, 0, 1),
     Camera->Pitch = Pitch;
     Camera->FoV = FoV;
     Camera->Up    = V3i(0,1,0);
-    /*
-      Camera->Front = V3(cosf(Camera->Pitch) * sinf(Camera->Yaw), sinf(Camera->Pitch), cosf(Camera->Pitch) * cosf(Camera->Yaw));
-      Camera->Right = V3(sinf(Camera->Yaw - M_PI/2.0f), 0, cosf(Camera->Yaw - M_PI/2.0f));
-      Camera->Up = CrossV3(Camera->Right, Camera->Front);
-    */
 }
 
 inline void
 aglCameraUpdate(agl_camera *Camera, agl_context *Context)
 {
-    if(LastUpdateTime != Context->Time)
+    r32 Speed = Context->Delta * Camera->Speed;
+    switch(Camera->Mode)
     {
-        r32 Speed = Context->Delta * Camera->Speed;
-        switch(Camera->Mode)
+        case AGL_CAMERA_MODE_FREE:
         {
-            case AGL_CAMERA_MODE_FREE:
-            {
-                if(aglKeyDown('W')) Camera->Position += Camera->Front * Speed;
-                if(aglKeyDown('S')) Camera->Position -= Camera->Front * Speed;
-                if(aglKeyDown('D')) Camera->Position += Camera->Right * Speed;
-                if(aglKeyDown('A')) Camera->Position -= Camera->Right * Speed;
+            if(aglKeyDown('W')) Camera->Position += Camera->Front * Speed;
+            if(aglKeyDown('S')) Camera->Position -= Camera->Front * Speed;
+            if(aglKeyDown('D')) Camera->Position += Camera->Right * Speed;
+            if(aglKeyDown('A')) Camera->Position -= Camera->Right * Speed;
 
-                if(aglMouseDown(AGL_MOUSE_LEFT))
-                {
-                    aglPlatformSetCursor(false);
-                    Camera->Yaw += Context->MouseInput.dX * Camera->Sensitivity;
-                    Camera->Pitch -= Context->MouseInput.dY * Camera->Sensitivity;
-                } else aglPlatformSetCursor(true);
-            }break;
-            case AGL_CAMERA_MODE_STATIC:
+            if(aglMouseDown(AGL_MOUSE_LEFT))
             {
-                // Nothing to update
-            }break;
-            case AGL_CAMERA_MODE_TARGET:
+                aglPlatformSetCursor(false);
+                Camera->Yaw += Context->Input.MouseXDelta * Camera->Sensitivity;
+                Camera->Pitch -= Context->Input.MouseYDelta * Camera->Sensitivity;
+            } else aglPlatformSetCursor(true);
+        }break;
+        case AGL_CAMERA_MODE_STATIC:
+        {
+            // Nothing to update
+        }break;
+        case AGL_CAMERA_MODE_TARGET:
+        {
+            // 
+        }break;
+        case AGL_CAMERA_MODE_FIRSTPERSON:
+        {
+            Camera->FoV -= (aglMouseWheelDelta() * Camera->Sensitivity);
+            if(aglMouseDown(AGL_MOUSE_LEFT))
             {
-                // 
-            }break;
-            case AGL_CAMERA_MODE_FIRSTPERSON:
-            {
-                Camera->FoV -= (aglMouseWheelDelta() * Camera->Sensitivity);
-                if(aglMouseDown(AGL_MOUSE_LEFT))
-                {
-                    aglCaptureMouse(true);
-
-                    Camera->Yaw += Context->MouseInput.dX * Camera->Sensitivity;
-                    Camera->Pitch -= Context->MouseInput.dY * Camera->Sensitivity;
-
-                    if(Camera->Pitch < -((M_PI-0.03f)/2)) Camera->Pitch = -((M_PI-0.03f)/2);
-                    if(Camera->Pitch > ((M_PI-0.03f)/2))  Camera->Pitch = (M_PI-0.03f)/2;
-
-                
-                } else aglCaptureMouse(false);
+                aglCaptureMouse(true);
+                                
+                Camera->Yaw += Context->Input.MouseXDelta * Camera->Sensitivity;
+                Camera->Pitch -= Context->Input.MouseYDelta * Camera->Sensitivity;
+                    
+                if(Camera->Pitch < -((M_PI-0.03f)/2)) Camera->Pitch = -((M_PI-0.03f)/2);
+                if(Camera->Pitch > ((M_PI-0.03f)/2))  Camera->Pitch = (M_PI-0.03f)/2;
+                                
+            } else aglCaptureMouse(false);
             
-                v3 Forward = NormalizeV3(V3(Camera->Front.x, 0, Camera->Front.z));
-                if(aglKeyDown('W')) Camera->Position += Forward * Speed;
-                if(aglKeyDown('S')) Camera->Position -= Forward * Speed;
-                if(aglKeyDown('D')) Camera->Position += Camera->Right * Speed;
-                if(aglKeyDown('A')) Camera->Position -= Camera->Right * Speed;
+            v3 Forward = NormalizeV3(V3(Camera->Front.x, 0, Camera->Front.z));
+            if(aglKeyDown('W')) Camera->Position += Forward * Speed;
+            if(aglKeyDown('S')) Camera->Position -= Forward * Speed;
+            if(aglKeyDown('D')) Camera->Position += Camera->Right * Speed;
+            if(aglKeyDown('A')) Camera->Position -= Camera->Right * Speed;
             
-            }break;
-            default:
-            {
-                AGL_ASSERT(!"Not implemented yet");
-            }
+        }break;
+        default:
+        {
+            AGL_ASSERT(!"Not implemented yet");
         }
-        LastUpdateTime = Context->Time;
     }
 }
 
-inline agl_material
+static agl_material
 aglMaterial(v3 Ambient = V3(1.0f), v3 Diffuse = V3(1.0f), v3 Specular = V3(0.5f), r32 Shininess = 32.0f)
 {
-    agl_material Material = {};
-    Material.Ambient  = Ambient;
-    Material.Diffuse  = Diffuse;
-    Material.Specular = Specular;
-    Material.Shininess = Shininess;
-    Material.ID = ++MaterialIndexCount;
-    return Material;
+    agl_material Result = {};
+    Result.Ambient  = Ambient;
+    Result.Diffuse  = Diffuse;
+    Result.Specular = Specular;
+    Result.Shininess = Shininess;
+    Result.ID = ++MaterialIndexCount;
+    return Result;
 }
 
 inline mat4x4
@@ -314,20 +368,26 @@ aglCameraView(agl_camera *Camera)
     return Result;
 }
 
-extern void
+static b32
 aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
 {
+    b32 Result = false;
+    s32 Errors = 0;
     if(Mesh)
     {
         s32 Mode = (Dynamic ? GL_DYNAMIC_DRAW_ARB : GL_STATIC_DRAW_ARB);
         if(Mesh->VertexCount > 0)
         {
             glGenVertexArrays(1, &Mesh->VAO);
+            if (glGetError()) Errors++;
+            
             glBindVertexArray(Mesh->VAO);
+            if (glGetError()) Errors++;
             
             if(Mesh->Vertices)
             {
                 glGenBuffers(1, Mesh->VBO);
+                if (glGetError()) Errors++;
                 glBindBuffer(GL_ARRAY_BUFFER_ARB, Mesh->VBO[0]);
                 glBufferData(GL_ARRAY_BUFFER_ARB, Mesh->VertexCount * sizeof(v3), Mesh->Vertices, Mode);
                 glEnableVertexAttribArray(0);
@@ -337,6 +397,7 @@ aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
             if(Mesh->TextureCoords)
             {
                 glGenBuffers(1, Mesh->VBO + 1);
+                if (glGetError()) Errors++;
                 glBindBuffer(GL_ARRAY_BUFFER_ARB, Mesh->VBO[1]);
                 glBufferData(GL_ARRAY_BUFFER_ARB, Mesh->VertexCount * sizeof(v2), Mesh->TextureCoords, Mode);
                 glEnableVertexAttribArray(1);
@@ -346,29 +407,46 @@ aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
             if(Mesh->Normals)
             {
                 glGenBuffers(1, Mesh->VBO + 2);
+                if (glGetError()) Errors++;
                 glBindBuffer(GL_ARRAY_BUFFER_ARB, Mesh->VBO[2]);
                 glBufferData(GL_ARRAY_BUFFER_ARB, Mesh->VertexCount * sizeof(v3), Mesh->Normals, Mode);
                 glEnableVertexAttribArray(2);
                 glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
             }
             glBindVertexArray(0);
+            
+            Result = (!Errors);
         }
-        
     }
-}
-
-extern void
-aglDelete(agl_drawable *Drawable)
-{
-    if(Drawable->Mesh.Vertices)      AGL_FREE(Drawable->Mesh.Vertices);
-    if(Drawable->Mesh.TextureCoords) AGL_FREE(Drawable->Mesh.TextureCoords);
-    if(Drawable->Mesh.Normals)       AGL_FREE(Drawable->Mesh.Normals);
-
-    glDeleteVertexArrays(1, &Drawable->Mesh.VAO);
-    AGL_ASSERT(glGetError() != GL_INVALID_VALUE);
+    return Result;
 }
 
 static void
+aglDelete(agl_drawable *Drawable)
+{   
+    if(Drawable->Mesh.Vertices)       AGL_FREE(Drawable->Mesh.Vertices, 0);
+    if(Drawable->Mesh.TextureCoords)  AGL_FREE(Drawable->Mesh.TextureCoords, 0);
+    if(Drawable->Mesh.Normals)        AGL_FREE(Drawable->Mesh.Normals, 0);
+
+    glDeleteVertexArrays(1, &Drawable->Mesh.VAO);
+    AGL_ASSERT(glGetError() != GL_INVALID_VALUE);
+
+    __agl_Objects[Drawable->ID] = 0;
+    AGL_FREE(Drawable, 0);
+    AGL_ASSERT(Drawable);
+}
+
+static void
+aglCleanupResources()
+{
+    for(s32 i=0; i < __agl_ObjectCounter; i++)
+    {
+        agl_drawable *o = __agl_Objects[i];
+        if(o) aglDelete(o);
+    }
+};
+
+static b32
 aglGenCube(agl_mesh *Mesh, r32 Size)
 {
     s32 VertexCount = 36;
@@ -377,37 +455,38 @@ aglGenCube(agl_mesh *Mesh, r32 Size)
     r32 Y  = Size;
 
     Mesh->TextureCoords = 0;
-    
     Mesh->VertexCount = VertexCount;
+    Mesh->Vertices = (v3 *) AGL_MALLOC(sizeof(v3) * VertexCount, 0);
+    Mesh->Normals  = (v3 *) AGL_MALLOC(sizeof(v3) * VertexCount, 0);
 
-    Mesh->Vertices = (v3 *) AGL_MALLOC( sizeof(v3) * VertexCount );
-    AGL_ASSERT(Mesh->Vertices);
-    Mesh->Normals = (v3 *) AGL_MALLOC( sizeof(v3) * VertexCount );
-    AGL_ASSERT(Mesh->Normals);
-    
-    // Clockwise vertex definition
-    v3 *v = Mesh->Vertices, *n = Mesh->Normals;
-    *v++ = {-XZ, 0.0f, XZ}; *v++ = {XZ, Y, XZ}; *v++ = {XZ, 0.0f, XZ};
-    *v++ = {-XZ, 0.0f, XZ}; *v++ = {-XZ, Y, XZ}; *v++ = {XZ, Y, XZ};
-    for(s32 i=0; i<6; i++) *n++ = {0,0,1};
-    *v++ = {-XZ, 0.0f, -XZ}; *v++ = {XZ, 0.0f, -XZ}; *v++ = {XZ, Y, -XZ}; 
-    *v++ = {-XZ, 0.0f, -XZ}; *v++ = {XZ, Y, -XZ}; *v++ = {-XZ, Y, -XZ}; 
-    for(s32 i=0; i<6; i++) *n++ = {0,0,-1};
-    *v++ = {-XZ, 0.0f, XZ}; *v++ = {XZ, 0.0f, XZ}; *v++ = {XZ, 0, -XZ};
-    *v++ = {-XZ, 0.0f, XZ}; *v++ = {XZ, 0.0f, -XZ}; *v++ = {-XZ, 0, -XZ};
-    for(s32 i=0; i<6; i++) *n++ = {0,-1,0};
-    *v++ = {-XZ, Y, XZ}; *v++ = {XZ, Y, -XZ}; *v++ = {XZ, Y, XZ};
-    *v++ = {-XZ, Y, XZ}; *v++ = {-XZ, Y, -XZ}; *v++ = {XZ, Y, -XZ};
-    for(s32 i=0; i<6; i++) *n++ = {0,1,0};
-    *v++ = {-XZ, 0, XZ};  *v++ = {-XZ, Y, -XZ}; *v++ = {-XZ, Y, XZ};
-    *v++ = {-XZ, 0, XZ}; *v++ = {-XZ, 0, -XZ}; *v++ = {-XZ, Y, -XZ};
-    for(s32 i=0; i<6; i++) *n++ = {-1,0,0};
-    *v++ = {XZ, 0, XZ}; *v++ = {XZ, Y, XZ}; *v++ = {XZ, Y, -XZ};
-    *v++ = {XZ, 0, XZ}; *v++ = {XZ, Y, -XZ}; *v++ = {XZ, 0, -XZ};
-    for(s32 i=0; i<6; i++) *n++ = {1,0,0};
+    if(Mesh->Vertices && Mesh->Normals)
+    {
+        // Clockwise vertex definition
+        v3 *v = Mesh->Vertices, *n = Mesh->Normals;
+        *v++ = {-XZ, 0.0f, XZ}; *v++ = {XZ, Y, XZ}; *v++ = {XZ, 0.0f, XZ};
+        *v++ = {-XZ, 0.0f, XZ}; *v++ = {-XZ, Y, XZ}; *v++ = {XZ, Y, XZ};
+        for(s32 i=0; i<6; i++) *n++ = {0,0,1};
+        *v++ = {-XZ, 0.0f, -XZ}; *v++ = {XZ, 0.0f, -XZ}; *v++ = {XZ, Y, -XZ}; 
+        *v++ = {-XZ, 0.0f, -XZ}; *v++ = {XZ, Y, -XZ}; *v++ = {-XZ, Y, -XZ}; 
+        for(s32 i=0; i<6; i++) *n++ = {0,0,-1};
+        *v++ = {-XZ, 0.0f, XZ}; *v++ = {XZ, 0.0f, XZ}; *v++ = {XZ, 0, -XZ};
+        *v++ = {-XZ, 0.0f, XZ}; *v++ = {XZ, 0.0f, -XZ}; *v++ = {-XZ, 0, -XZ};
+        for(s32 i=0; i<6; i++) *n++ = {0,-1,0};
+        *v++ = {-XZ, Y, XZ}; *v++ = {XZ, Y, -XZ}; *v++ = {XZ, Y, XZ};
+        *v++ = {-XZ, Y, XZ}; *v++ = {-XZ, Y, -XZ}; *v++ = {XZ, Y, -XZ};
+        for(s32 i=0; i<6; i++) *n++ = {0,1,0};
+        *v++ = {-XZ, 0, XZ};  *v++ = {-XZ, Y, -XZ}; *v++ = {-XZ, Y, XZ};
+        *v++ = {-XZ, 0, XZ}; *v++ = {-XZ, 0, -XZ}; *v++ = {-XZ, Y, -XZ};
+        for(s32 i=0; i<6; i++) *n++ = {-1,0,0};
+        *v++ = {XZ, 0, XZ}; *v++ = {XZ, Y, XZ}; *v++ = {XZ, Y, -XZ};
+        *v++ = {XZ, 0, XZ}; *v++ = {XZ, Y, -XZ}; *v++ = {XZ, 0, -XZ};
+        for(s32 i=0; i<6; i++) *n++ = {1,0,0};
+        return true;
+    }
+    return false;
 }
 
-static void
+static b32
 aglGenGridFlat(agl_mesh *Mesh, r32 Size, r32 GridWidth, r32 GridHeight)
 {
     s32 VertexCount = (Size * 4) + 4;
@@ -418,42 +497,62 @@ aglGenGridFlat(agl_mesh *Mesh, r32 Size, r32 GridWidth, r32 GridHeight)
     
     Mesh->VertexCount   = VertexCount;
     
-    Mesh->Vertices      = (v3 *) AGL_MALLOC( sizeof(v3) * VertexCount );
-    AGL_ASSERT(Mesh->Vertices);
-    
-    v3 *v = Mesh->Vertices;
-    for(s32 i = 0; i < Size+1; i++)
-    {
-        r32 X = -((Size * GridWidth)  / 2.0f);
-        r32 Z = -((Size * GridHeight) / 2.0f) + (i * GridWidth);
-        
-        *v++ = { X, 0, Z };
-        *v++ = { -X, 0, Z };
+    Mesh->Vertices      = (v3 *) AGL_MALLOC(sizeof(v3) * VertexCount, 0);
 
-        *v++ = { Z, 0, X };
-        *v++ = { Z, 0, -X };
+    if(Mesh->Vertices)
+    {
+        v3 *v = Mesh->Vertices;
+        for(s32 i = 0; i < Size+1; i++)
+        {
+            r32 X = -((Size * GridWidth)  / 2.0f);
+            r32 Z = -((Size * GridHeight) / 2.0f) + (i * GridWidth);
+        
+            *v++ = { X, 0, Z };
+            *v++ = { -X, 0, Z };
+
+            *v++ = { Z, 0, X };
+            *v++ = { Z, 0, -X };
+        }
+        return true;
     }
+    return false;
 }
 
-inline agl_drawable
+static agl_drawable *
 aglPrimitiveGrid(r32 Size = 16.0f, r32 GridWidth = 1.0f, r32 GridHeight = 1.0f)
 {
-    agl_drawable Result = {};
-    Result.GLRenderMode = GL_LINES;
-    Result.Material = aglMaterial();
-    Result.Material.Specular = V3(0, 0, 0);
-    Result.Material.Shininess = 0;
-    aglGenGridFlat(&Result.Mesh, Size, GridWidth, GridHeight);
-    return Result;    
+    agl_drawable *Result = (agl_drawable *) AGL_MALLOC(sizeof(agl_drawable), 0);
+    if(Result)
+    {
+        Result->GLRenderMode = GL_LINES;
+        Result->Material = aglMaterial();
+        Result->Material.Specular = V3(0, 0, 0);
+        Result->Material.Shininess = 0;
+        if(aglGenGridFlat(&Result->Mesh, Size, GridWidth, GridHeight) && aglGenBuffer(&Result->Mesh))
+        {
+            Result->ID = __agl_ObjectCounter;
+            __agl_Objects[__agl_ObjectCounter++] = Result;
+        } else AGL_FREE(Result,0);
+        
+    }
+    return Result;
 }
 
-inline agl_drawable
+static agl_drawable *
 aglPrimitiveCube(r32 Size = 1.0f)
-{
-    agl_drawable Result = {};
-    Result.GLRenderMode = GL_TRIANGLES;
-    Result.Material = aglMaterial();
-    aglGenCube(&Result.Mesh, Size);
+{    
+    agl_drawable *Result = (agl_drawable *) AGL_MALLOC(sizeof(agl_drawable), 0);
+    if(Result)
+    {
+        Result->GLRenderMode = GL_TRIANGLES;
+        Result->Material = aglMaterial();
+        if(aglGenCube(&Result->Mesh, Size) && aglGenBuffer(&Result->Mesh))
+        {
+            Result->ID = __agl_ObjectCounter;
+            __agl_Objects[__agl_ObjectCounter++] = Result;
+        } else AGL_FREE(Result, 0);
+        
+    }
     return Result;
 }
 
@@ -522,9 +621,9 @@ aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = IdentityMat4x4(), agl_shade
 
 
 
-#if defined(AGL_USE_STB_TRUETYPE)
+#if defined(STB_TRUETYPE_IMPLEMENTATION)
 
-char *
+static char *
 aglReadFile(const char *File)
 {
     char *Result;
@@ -535,19 +634,20 @@ aglReadFile(const char *File)
     memsize = ftell(fp);
     rewind(fp);
 
-    Result = (char *) AGL_MALLOC( sizeof(char) * (memsize+1));
+    Result = (char *) AGL_MALLOC(sizeof(char) * (memsize+1), 0);
     fread(Result, 1, memsize, fp);
     fclose(fp);
+    Result[memsize+1] = '0';
     return Result;
 }
 
-agl_font *
+static agl_ttf_font *
 aglInitFont(const char *Filename,
             s32 FontSize = AGL_TRUETYPE_DEFAULT_TEXT_SIZE,
             s32 Width = AGL_TRUETYPE_DEFAULT_TEXTURE_SIZE,
             s32 Height = AGL_TRUETYPE_DEFAULT_TEXTURE_SIZE)
 {
-    agl_font *Result = (agl_font *) AGL_MALLOC( sizeof(agl_font) );
+    agl_ttf_font *Result = (agl_ttf_font *) AGL_MALLOC(sizeof(agl_ttf_font), 0);
     Result->FontSize     = FontSize;
     Result->Width        = Width;
     Result->Height       = Height;
@@ -557,7 +657,7 @@ aglInitFont(const char *Filename,
 
     char *FontData = aglReadFile(Filename);
     
-    u8 *AtlasData = (u8 *) AGL_MALLOC( Result->Width * Result->Height );
+    u8 *AtlasData = (u8*) AGL_MALLOC(Result->Width * Result->Height, 0);
     AGL_ASSERT(AtlasData);
     
     stbtt_pack_context Context;
@@ -568,8 +668,8 @@ aglInitFont(const char *Filename,
                                AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER, AGL_TRUETYPE_DEFAULT_CHARACTERS, Result->CharacterInfo))
         {
             stbtt_PackEnd(&Context);
-        } else AGL_FREE(Result);
-    } else AGL_FREE(Result);
+        } else AGL_FREE(Result, 0);
+    } else AGL_FREE(Result, 0);
     
     AGL_ASSERT(Result);
     
@@ -580,32 +680,32 @@ aglInitFont(const char *Filename,
     glHint(GL_GENERATE_MIPMAP_HINT, GL_NICEST);
     glGenerateMipmap(GL_TEXTURE_2D);
 
-    AGL_FREE(FontData);
-    AGL_FREE(AtlasData);
+    AGL_FREE(FontData, 0);
+    AGL_FREE(AtlasData, 0);
     
     glBindTexture(GL_TEXTURE_2D, 0);
     
     return Result;
 }
 
-void
-aglDeleteFont(agl_font *Font)
+static void
+aglDeleteFont(agl_ttf_font *Font)
 {
-    AGL_FREE(Font);
+    AGL_FREE(Font, 0);
 }
 
-agl_render_text *
-aglRenderableText(char *Text, agl_font *Font)
+static agl_render_text *
+aglRenderableText(char *Text, agl_ttf_font *Font)
 {
-    agl_render_text * Result = (agl_render_text *) AGL_MALLOC(sizeof(agl_render_text));
+    agl_render_text * Result = (agl_render_text *) AGL_MALLOC(sizeof(agl_render_text), 0);
     
     s32 TextLength = strlen(Text);
     s32 VertexCount = 4 * TextLength;
     s32 IndexCount = 6 * TextLength;
     
-    v3 *vdata      = (v3 *)  AGL_MALLOC(sizeof(v3) * VertexCount);
-    v2 *texdata    = (v2 *)  AGL_MALLOC(sizeof(v2) * VertexCount);
-    u16 *idata     = (u16 *) AGL_MALLOC(sizeof(u16) * IndexCount);
+    v3 *vdata      = (v3 *)  AGL_MALLOC(sizeof(v3) * VertexCount, 0);
+    v2 *texdata    = (v2 *)  AGL_MALLOC(sizeof(v2) * VertexCount, 0);
+    u16 *idata     = (u16 *) AGL_MALLOC(sizeof(u16) * IndexCount, 0);
 
     r32 OffsetX = 0, OffsetY = 0;
     s32 LastIndex = 0;
@@ -655,9 +755,9 @@ aglRenderableText(char *Text, agl_font *Font)
     
     glBindVertexArray(0);
 
-    AGL_FREE(vdata);
-    AGL_FREE(texdata);
-    AGL_FREE(idata);
+    AGL_FREE(vdata, 0);
+    AGL_FREE(texdata, 0);
+    AGL_FREE(idata, 0);
 
     Result->IndexCount = IndexCount;
     return Result;
@@ -666,7 +766,7 @@ aglRenderableText(char *Text, agl_font *Font)
 agl_shader_text *
 aglInitFontShader()
 {
-    agl_shader_text *Shader = (agl_shader_text *) AGL_MALLOC( sizeof(agl_shader_text) );
+    agl_shader_text *Shader = (agl_shader_text *) AGL_MALLOC(sizeof(agl_shader_text), 0);
     const char * VertexShader = GLSL
         (
             in vec4 position;
@@ -750,7 +850,7 @@ aglInitFontShader()
 }
 
 void
-aglRenderText3D(agl_font *Font, char *Text, r32 Scale = 1.0f,
+aglRenderText3D(agl_ttf_font *Font, char *Text, r32 Scale = 1.0f,
                 r32 X = 0.f, r32 Y = 0.f, r32 Z = 0.f,
                 v3 Color = V3(1.0f, 1.0f, 1.0f), r32 Alpha = 0.f)
 {
@@ -760,10 +860,10 @@ aglRenderText3D(agl_font *Font, char *Text, r32 Scale = 1.0f,
     s32 VertexCount = 4 * TextLength;
     s32 IndexCount = 6 * TextLength;
     
-    v3 *vdata      = (v3 *)  AGL_MALLOC(sizeof(v3) * VertexCount);
-    v2 *texdata    = (v2 *)  AGL_MALLOC(sizeof(v2) * VertexCount);
-    u16 *idata     = (u16 *) AGL_MALLOC(sizeof(u16) * IndexCount);
-
+    v3 *vdata      = (v3 *)  AGL_MALLOC(sizeof(v3) * VertexCount, 0);
+    v2 *texdata    = (v2 *)  AGL_MALLOC(sizeof(v2) * VertexCount, 0);
+    u16 *idata     = (u16 *) AGL_MALLOC(sizeof(u16) * IndexCount, 0);
+    
     r32 OffsetX = 0, OffsetY = 0;
     s32 LastIndex = 0;
 
@@ -819,13 +919,13 @@ aglRenderText3D(agl_font *Font, char *Text, r32 Scale = 1.0f,
     glDisableVertexAttribArray(1);
     glDisableVertexAttribArray(0);
     
-    AGL_FREE(vdata);
-    AGL_FREE(texdata);
-    AGL_FREE(idata);    
+    AGL_FREE(vdata, 0);
+    AGL_FREE(texdata, 0);
+    AGL_FREE(idata, 0);    
 }
 
 void
-aglRenderText2D(agl_font *Font, char *Text,
+aglRenderText2D(agl_ttf_font *Font, char *Text,
                 r32 X = 0.f, r32 Y = 0.f,
                 v3 Color = V3(1.0f, 1.0f, 1.0f), r32 Alpha = 0.f)
 {
@@ -834,10 +934,10 @@ aglRenderText2D(agl_font *Font, char *Text,
     s32 TextLength = strlen(Text);
     s32 VertexCount = 4 * TextLength;
     s32 IndexCount = 6 * TextLength;
-    
-    v3 *vdata      = (v3 *)  AGL_MALLOC(sizeof(v3) * VertexCount);
-    v2 *texdata    = (v2 *)  AGL_MALLOC(sizeof(v2) * VertexCount);
-    u16 *idata     = (u16 *) AGL_MALLOC(sizeof(u16) * IndexCount);
+   
+    v3 *vdata      = (v3 *)  AGL_MALLOC(sizeof(v3) * VertexCount, 0);
+    v2 *texdata    = (v2 *)  AGL_MALLOC(sizeof(v2) * VertexCount, 0);
+    u16 *idata     = (u16 *) AGL_MALLOC(sizeof(u16) * IndexCount, 0);
 
     r32 OffsetX = 0, OffsetY = 0;
     s32 LastIndex = 0;
@@ -897,9 +997,9 @@ aglRenderText2D(agl_font *Font, char *Text,
     glDisableVertexAttribArray(1);
     glDisableVertexAttribArray(0);
     
-    AGL_FREE(vdata);
-    AGL_FREE(texdata);
-    AGL_FREE(idata);    
+    AGL_FREE(vdata, 0);
+    AGL_FREE(texdata, 0);
+    AGL_FREE(idata, 0);    
 }
 
 #endif

@@ -241,34 +241,26 @@ AGL_16x16BATCHDRAW_VS = GLSL
 
 
 const char *
-AGL_SHADER_TEXT_VS = GLSL
+AGL_SHADER_SHADOWMAP_VS = GLSL
     (
-        layout(location = 0) in vec2 vertexPosition;
-        layout(location = 1) in vec2 vertexUV;
+        layout(location = 0) in vec3 vertexPosition;
 
-        uniform vec2 viewport;
-
-        out vec2 UV;
+        uniform mat4 depthMVP;
         
         void main()
         {
-            vec2 finalPosition = vertexPosition - (viewport / 2);
-            gl_Position = vec4(finalPosition / (viewport / 2), 0, 1);
-            UV = vertexUV;
+            gl_Position = depthMVP * vec(vertexPosition, 1);
         }
      );
 
 const char *
-AGL_SHADER_TEXT_FS = GLSL
+AGL_SHADER_SHADOWMAP_FS = GLSL
     (
-        in vec2 UV;
-        uniform sampler2D texture2D;
-        
-        out vec4 color;
+        layout(location = 0) out float fragmentdepth;
         
         void main()
         {
-            color = texture(texture2D, UV);
+            fragmentdepth = gl_FragCoord.z;
         }
 );
 #define AGL_SHADERS_H
