@@ -15,5 +15,8 @@ REM cl %CompilerFlags% -DAGL_EXPORT ..\code\win32_agl.cpp /LD /link %LinkerFlags
 REM 64-bit build
 REM cl %CompilerFlags% ..\code\game.cpp /link %LinkerFlags% win32_agl.lib %SuppressConsole%
 
-cl %CompilerFlags% ..\code\test.cpp /link %LinkerFlags%
+cl %CompilerFlags% ..\code\model_editor.cpp /link %LinkerFlags%
+
+REM cl %CompilerFlags% ..\code\test.cpp /link %LinkerFlags%
+REM cl %CompilerFlags% ..\code\hash_test.cpp /link %LinkerFlags%
 popd

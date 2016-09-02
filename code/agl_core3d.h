@@ -1,15 +1,13 @@
 #if !defined(AGL_CORE3D_H)
 
-#if !defined(AGL_H)
-#error "agl.h needs to be included to use this library"
+#if !defined(AGL_H) || !defined(AGL_MATH_H)
+#error "agl.h or agl_math.h missing. Please include them before including this file!"
 #endif
 
-#include "agl_math.h"
-
-#if !defined(AGL_MALLOC) && !defined(AGL_FREE)
+#if !defined(AGL_MALLOC) || !defined(AGL_FREE)
     #include <stdlib.h>
-    #define AGL_MALLOC(Type, Size) (Type *) malloc(Size)
-    #define AGL_FREE(Address, Size) free(Address)
+    #define AGL_MALLOC(x,u) calloc(1,x)
+    #define AGL_FREE(x,u)   free(x)
 #endif
 
 #if defined(STB_TRUETYPE_IMPLEMENTATION)
@@ -28,17 +26,15 @@ typedef struct
     u32 OverSampleY;
     stbtt_packedchar CharacterInfo[AGL_TRUETYPE_DEFAULT_CHARACTERS];
     u32 Texture;
-} agl_ttf_font;
+} agl_font_stbttf;
 #endif
 
 #define AGL_CORE3D_OBJECTS_MAX 1024
-#define AGL_CORE3D_SHADER_BINDINGS_MAX 16
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
     typedef struct
     {
@@ -55,7 +51,7 @@ extern "C" {
            5 = renderInfo
         */  
     } agl_shader_text;
-    agl_shader_text *FontRenderingShader;
+
 
     typedef struct
     {
@@ -83,8 +79,8 @@ extern "C" {
     typedef struct 
     {
         u32 VAO;
-        u32 VBO[8];
         u32 IBO;
+        u32 VBO[4];
         s32 VertexCount;
         s32 IndexCount;
         v3  *Vertices;
@@ -111,38 +107,21 @@ extern "C" {
     agl_drawable *__agl_Objects[AGL_CORE3D_OBJECTS_MAX];
     s32 __agl_ObjectCounter;
 
-    // TODO: Need a general way to handle shaders
-    //       - Bind uniforms before rendering (Maybe predeclare which name maps to a pointer, which maps to binding id?)
+    #define GLSL(source) "#version 330\n" #source
     #include "agl_shaders.h"
-    enum {
-        AGL_SHADER_TYPE_MATRIX4, AGL_SHADER_TYPE_MATRIX3,
-        AGL_SHADER_TYPE_VECTOR4, AGL_SHADER_TYPE_VECTOR3, AGL_SHADER_TYPE_VECTOR2,
-        AGL_SHADER_TYPE_FLOAT, AGL_SHADER_TYPE_INTEGER, AGL_SHADER_TYPE_BOOLEAN,
+    enum { AGL_SHADER_TYPE_CUSTOM = 0,
+           AGL_SHADER_TYPE_SHADOWMAP = 1,
+           AGL_SHADER_TYPE_LIGHTING = 2,
+           AGL_SHADER_TYPE_FONTS = 4,
     };
-
     typedef struct
     {
         u32 Type;
-        u32 UniformID;
-        union
-        {
-            mat4x4 *Matrix4;
-            mat3x3 *Matrix3;
-            v4 *Vector4;
-            v3 *Vector3;
-            v2 *Vector2;
-            r32 *Float;
-            s32 *Integer;
-            b32 *Boolean;
-        };
-    } agl_shader_uniform_binding;
-           
-    typedef struct
-    {
-        s32 Id;
+        u32 Program;
+        u32 Bindings[32];
         s32 BindingCount;
-        agl_shader_uniform_binding Bindings[AGL_CORE3D_SHADER_BINDINGS_MAX];
     } agl_shader_ext;
+    agl_shader_ext *FontRenderingShader;
     
     typedef struct
     {
@@ -153,6 +132,7 @@ extern "C" {
         s32 Matrix[4];
         s32 Material[4];
         s32 Light[4];
+        s32 ShadowMap;
         /* For internal drawing operations this ordering must be used.
            Otherwise you have to bind your uniforms yourself before drawing.
            
@@ -174,6 +154,14 @@ extern "C" {
            3 = light.shininess;
         */
     } agl_shader;
+
+    typedef struct
+    {
+        s32 VAO;
+
+        agl_material Material[12];
+        
+    } agl_object_3d;
     
 #ifdef __cplusplus
 }
@@ -200,7 +188,7 @@ aglInitDefaultShader()
         Result.Matrix[0] = glGetUniformLocation(Result.Id, "matrixModelViewProj");
         Result.Matrix[1] = glGetUniformLocation(Result.Id, "matrixModel");
         Result.Matrix[2] = glGetUniformLocation(Result.Id, "matrixView");
-        Result.Matrix[3] = glGetUniformLocation(Result.Id, "matrixInverse");
+        Result.Matrix[3] = glGetUniformLocation(Result.Id, "matrixSpace");
 
         Result.Material[0] = glGetUniformLocation(Result.Id, "material.ambient");
         Result.Material[1] = glGetUniformLocation(Result.Id, "material.diffuse");
@@ -213,31 +201,82 @@ aglInitDefaultShader()
         Result.Light[3] = glGetUniformLocation(Result.Id, "light.specular");
 
         Result.Camera = glGetUniformLocation(Result.Id, "viewPos");
+        Result.ShadowMap = glGetUniformLocation(Result.Id, "shadowMap");
+        
         Result.Success = true;
     }
     AGL_ASSERT(Result.Success);
     return Result;
 }
 
-static b32 aglShaderSetBinding(agl_shader_ext *Shader, char *Uniform, u32 ShaderType, void *Address)
+static b32
+aglShaderCompileAndAttach(agl_shader_ext *Shader, const char *ShaderSource, GLenum Type)
 {
-    if(!Shader || !Address) return false;
     b32 Result = false;
-    switch(ShaderType)
+    u32 ShaderID = glCreateShader(Type);
+    if(glGetError() != GL_INVALID_ENUM)
     {
-        case AGL_SHADER_TYPE_MATRIX4:
+        glShaderSource(ShaderID, 1, &ShaderSource, 0);
+        glCompileShader(ShaderID);
+        
+        s32 Status;
+        glGetShaderiv(ShaderID, GL_COMPILE_STATUS, &Status);
+        if(Status == GL_FALSE)
         {
-            u32 UniformID = glGetUniformLocation(Shader->Id, Uniform);
-            //if(glGetError()) break;
-
-            agl_shader_uniform_binding * Binding = Shader->Bindings + Shader->BindingCount++;
-            Binding->Type = ShaderType;
-            Binding->UniformID = UniformID;
-            Binding->Matrix4 = (mat4x4 *) Address;
-            
+#if defined(AGL_DEBUG)
+            s32 Length = 0;
+            char ErrorMessage[1024];
+            glGetShaderInfoLog(ShaderID, 1024, &Length, ErrorMessage);
+            AGL_DEBUG_PRINT("%s\n", ErrorMessage);
+#endif
+            Result = false;
+            AGL_ASSERT(false);
+        } else {
+            glAttachShader(Shader->Program, ShaderID);
             Result = true;
-        } break;
+        }
     }
+    return Result;
+}
+
+static b32
+aglShaderLink(agl_shader_ext *Shader)
+{
+    b32 Result = false;
+    glLinkProgram(Shader->Program);
+    if(glGetError() != GL_INVALID_VALUE && glGetError() != GL_INVALID_OPERATION)
+    {
+        s32 Status;
+        glGetProgramiv(Shader->Program, GL_LINK_STATUS, &Status);
+        if(Status == GL_FALSE)
+        {
+#if defined(AGL_DEBUG)
+            s32 Length = 0;
+            char ErrorMessage[1024];
+            glGetProgramInfoLog(Shader->Program, 1024, &Length, ErrorMessage);
+            AGL_DEBUG_PRINT("%s\n", ErrorMessage);
+#endif
+            AGL_ASSERT(false);
+        } else {
+            glUseProgram(Shader->Program);
+            Result = true;
+        }
+    }
+    return Result;
+}
+
+static b32
+aglShaderSetBinding(agl_shader_ext *Shader, char *Uniform)
+{
+    b32 Result = true;
+
+    if(!Shader) return false;
+    s32 UniformID = glGetUniformLocation(Shader->Program, Uniform);
+    if(glGetError() == GL_INVALID_VALUE || glGetError() == GL_INVALID_OPERATION)
+        Result = false;
+    else        
+        Shader->Bindings[Shader->BindingCount++] = UniformID;
+
     return Result;
 }
     
@@ -314,7 +353,7 @@ aglCameraUpdate(agl_camera *Camera, agl_context *Context)
     }
 }
 
-static agl_material
+inline agl_material
 aglMaterial(v3 Ambient = V3(1.0f), v3 Diffuse = V3(1.0f), v3 Specular = V3(0.5f), r32 Shininess = 32.0f)
 {
     agl_material Result = {};
@@ -371,6 +410,7 @@ aglCameraView(agl_camera *Camera)
 static b32
 aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
 {
+    v3 *Test;
     b32 Result = false;
     s32 Errors = 0;
     if(Mesh)
@@ -392,6 +432,7 @@ aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
                 glBufferData(GL_ARRAY_BUFFER_ARB, Mesh->VertexCount * sizeof(v3), Mesh->Vertices, Mode);
                 glEnableVertexAttribArray(0);
                 glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
             }
             
             if(Mesh->TextureCoords)
@@ -448,7 +489,7 @@ aglCleanupResources()
 
 static b32
 aglGenCube(agl_mesh *Mesh, r32 Size)
-{
+{    
     s32 VertexCount = 36;
     s32 TriangleCount = VertexCount / 3;
     r32 XZ = Size / 2.0f;
@@ -532,11 +573,30 @@ aglPrimitiveGrid(r32 Size = 16.0f, r32 GridWidth = 1.0f, r32 GridHeight = 1.0f)
         {
             Result->ID = __agl_ObjectCounter;
             __agl_Objects[__agl_ObjectCounter++] = Result;
-        } else AGL_FREE(Result,0);
+        } else aglDelete(Result);
         
     }
     return Result;
 }
+
+static agl_drawable *
+aglPlane(r32 Width = 1.0f, r32 Height = 1.0f)
+{
+    
+    r32 halfX = Width * .5f;
+    r32 halfZ = Height * .5f;
+    r32 vData[] = {
+        -halfX, 0.f, halfZ, -halfX, 0.f, -halfZ, halfX, 0.f, -halfZ,
+        -halfX, 0.f, halfZ,  halfX, 0.f, -halfZ, halfX, 0.f,  halfZ,
+    };
+    r32 nData[] = {
+        0.f, 1.f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f, 0.f,
+        0.f, 1.f, 0.f, 0.f, 1.f, 0.f, 0.f, 1.f, 0.f,
+    };
+  
+    
+}
+
 
 static agl_drawable *
 aglPrimitiveCube(r32 Size = 1.0f)
@@ -550,8 +610,7 @@ aglPrimitiveCube(r32 Size = 1.0f)
         {
             Result->ID = __agl_ObjectCounter;
             __agl_Objects[__agl_ObjectCounter++] = Result;
-        } else AGL_FREE(Result, 0);
-        
+        } else aglDelete(Result);
     }
     return Result;
 }
@@ -578,22 +637,23 @@ aglEndScene3D(agl_context *Context, agl_camera *Camera)
 
 
 inline void
-aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = IdentityMat4x4(), agl_shader *Shader = 0)
+aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = IdentityMat4x4(), agl_shader *Shader = 0, b32 ShowPoints = false)
 {
     if(Drawable)
     {
         if(Shader && Shader->IsDefault)
         {
-            glUseProgram(Shader->Id);
+            //glUseProgram(Shader->Id);
 
-            v3 lightColor = V3( 1, 1, 1);
-            v3 diffuse = lightColor;
-            v3 ambient = diffuse * .5f;
+            v3 lightColor = V3(1, 1, 1);
+            v3 diffuse = lightColor * .5f;
+            v3 ambient = lightColor * .2f;
+            v3 specular = lightColor * .5f;
         
-            glUniform3f(Shader->Light[0], 0.f, 30.f, 0.f);
+            glUniform3f(Shader->Light[0], 25.f, 25.f, 25.f);
             glUniform3f(Shader->Light[1], ambient.r, ambient.g, ambient.b);
             glUniform3f(Shader->Light[2], diffuse.r, diffuse.g, diffuse.b);
-            glUniform3f(Shader->Light[3], 1.0f, 1.0f, 1.0f);
+            glUniform3f(Shader->Light[3], specular.r, specular.g, specular.b);
 
             mat4x4 Result = MultMat4x4(ModelMatrix, CurrentViewMatrix);
             Result = MultMat4x4(Result, CurrentProjectionMatrix);
@@ -612,6 +672,16 @@ aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = IdentityMat4x4(), agl_shade
             glBindVertexArray(Drawable->Mesh.VAO);
             
             glDrawArrays(Drawable->GLRenderMode, 0, Drawable->Mesh.VertexCount);
+            if(ShowPoints)
+            {
+                glDisable(GL_DEPTH_TEST);
+                glPointSize(10);
+                glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+                glDrawArrays(Drawable->GLRenderMode, 0, Drawable->Mesh.VertexCount);
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                glEnable(GL_DEPTH_TEST);
+                glPointSize(1);
+            }
             
             glBindVertexArray(0);
             
@@ -634,20 +704,19 @@ aglReadFile(const char *File)
     memsize = ftell(fp);
     rewind(fp);
 
-    Result = (char *) AGL_MALLOC(sizeof(char) * (memsize+1), 0);
+    Result = (char *) AGL_MALLOC(sizeof(char) * memsize, 0);
     fread(Result, 1, memsize, fp);
     fclose(fp);
-    Result[memsize+1] = '0';
     return Result;
 }
 
-static agl_ttf_font *
+static agl_font_stbttf *
 aglInitFont(const char *Filename,
             s32 FontSize = AGL_TRUETYPE_DEFAULT_TEXT_SIZE,
             s32 Width = AGL_TRUETYPE_DEFAULT_TEXTURE_SIZE,
             s32 Height = AGL_TRUETYPE_DEFAULT_TEXTURE_SIZE)
 {
-    agl_ttf_font *Result = (agl_ttf_font *) AGL_MALLOC(sizeof(agl_ttf_font), 0);
+    agl_font_stbttf *Result = (agl_font_stbttf *) AGL_MALLOC(sizeof(agl_font_stbttf), 0);
     Result->FontSize     = FontSize;
     Result->Width        = Width;
     Result->Height       = Height;
@@ -689,13 +758,13 @@ aglInitFont(const char *Filename,
 }
 
 static void
-aglDeleteFont(agl_ttf_font *Font)
+aglDeleteFont(agl_font_stbttf *Font)
 {
     AGL_FREE(Font, 0);
 }
 
 static agl_render_text *
-aglRenderableText(char *Text, agl_ttf_font *Font)
+aglRenderableText(char *Text, agl_font_stbttf *Font)
 {
     agl_render_text * Result = (agl_render_text *) AGL_MALLOC(sizeof(agl_render_text), 0);
     
@@ -763,9 +832,10 @@ aglRenderableText(char *Text, agl_ttf_font *Font)
     return Result;
 }
 
-agl_shader_text *
+agl_shader_ext *
 aglInitFontShader()
 {
+#if 0
     agl_shader_text *Shader = (agl_shader_text *) AGL_MALLOC(sizeof(agl_shader_text), 0);
     const char * VertexShader = GLSL
         (
@@ -846,11 +916,96 @@ aglInitFontShader()
     glGenBuffers(1, &Shader->IBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, Shader->IBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(u16), 0, GL_DYNAMIC_DRAW_ARB);
+#else
+    agl_shader_ext *Shader = (agl_shader_ext *) AGL_MALLOC(sizeof(agl_shader_ext), 0);
+    const char * VertexShader = GLSL
+        (
+            in vec4 position;
+            in vec2 texCoord0;
+
+            uniform bool render2D = false;
+            uniform vec4 renderInfo;
+            
+            uniform mat4 worldMatrix;
+            uniform mat4 viewProjMatrix;
+            uniform vec4 fontColor = vec4(1.0, 1.0, 1.0, 1.0);
+        
+            out vec2 uv0;
+            out vec4 color;
+        
+            void main()
+            {
+                if(render2D)
+                {
+                    vec2 halfdim = vec2(renderInfo.x, renderInfo.y)/2;
+                    vec2 pos = vec2(position) - halfdim;
+                    pos.x += renderInfo.z;
+                    pos.y += renderInfo.w;
+                    pos /= halfdim;
+                    gl_Position = vec4(pos.x,pos.y,0,1);
+                }
+                else
+                    gl_Position = viewProjMatrix * worldMatrix * position;
+                
+                uv0 = texCoord0;
+                color = fontColor;
+            }
+         );
+
+    const char * FragmentShader = GLSL
+        (
+            uniform sampler2D mainTex;
+            in vec2 uv0;
+            in vec4 color;
+            out vec4 fragColor;
+        
+            void main()
+            {
+                vec4 c = texture(mainTex, uv0);
+                if(c.r != 0)
+                    fragColor = vec4(color.r * c.r, color.g * c.r, color.b * c.r, c.r - color.a);
+                else
+                    fragColor = vec4(c.r,c.r,c.r,0);
+            }
+         );
+
+    Shader->Type = AGL_SHADER_TYPE_FONTS;
+    Shader->Program = glCreateProgram();
+    if(aglShaderCompileAndAttach(Shader, VertexShader, GL_VERTEX_SHADER) &&
+       aglShaderCompileAndAttach(Shader, FragmentShader, GL_FRAGMENT_SHADER))
+    {
+        if(aglShaderLink(Shader))
+        {
+            aglShaderSetBinding(Shader, "viewProjMatrix");
+            aglShaderSetBinding(Shader, "worldMatrix");
+            aglShaderSetBinding(Shader, "mainTex");
+            aglShaderSetBinding(Shader, "fontColor");
+            aglShaderSetBinding(Shader, "render2D");
+            aglShaderSetBinding(Shader, "renderInfo");
+
+            glGenBuffers(1, Shader->Bindings + 20);
+            glBindBuffer(GL_ARRAY_BUFFER_ARB, Shader->Bindings[20]);
+            glBufferData(GL_ARRAY_BUFFER_ARB, sizeof(v3), 0, GL_DYNAMIC_DRAW_ARB);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+        
+            glGenBuffers(1, Shader->Bindings + 21);
+            glBindBuffer(GL_ARRAY_BUFFER_ARB, Shader->Bindings[21]);
+            glBufferData(GL_ARRAY_BUFFER_ARB, sizeof(v2), 0, GL_DYNAMIC_DRAW_ARB);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+            glGenBuffers(1, Shader->Bindings + 22);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, Shader->Bindings[22]);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(u16), 0, GL_DYNAMIC_DRAW_ARB);
+            return Shader;
+        }
+    }
+    AGL_FREE(Shader, 0);
+#endif
     return Shader;
 }
 
 void
-aglRenderText3D(agl_ttf_font *Font, char *Text, r32 Scale = 1.0f,
+aglRenderText3D(agl_font_stbttf *Font, char *Text, r32 Scale = 1.0f,
                 r32 X = 0.f, r32 Y = 0.f, r32 Z = 0.f,
                 v3 Color = V3(1.0f, 1.0f, 1.0f), r32 Alpha = 0.f)
 {
@@ -887,30 +1042,30 @@ aglRenderText3D(agl_ttf_font *Font, char *Text, r32 Scale = 1.0f,
         LastIndex += 4;
     }
 
-    glUseProgram(FontRenderingShader->Id);
+    glUseProgram(FontRenderingShader->Program);
     
     mat4x4 World = ScaleMatrix((1.0f / Font->Width) * Scale, (1.0f / Font->Height) * Scale, Z);
     World = MultMat4x4(World, TranslationMatrix(X, Y, Z));
     mat4x4 ViewProj = MultMat4x4(CurrentViewMatrix, CurrentProjectionMatrix);
 
-    glUniformMatrix4fv(FontRenderingShader->Uniforms[0], 1, GL_FALSE, (const float *) ViewProj.E);
-    glUniformMatrix4fv(FontRenderingShader->Uniforms[1], 1, GL_FALSE, (const float *) World.E);
     glBindTexture(GL_TEXTURE_2D, Font->Texture);
-    glUniform1i(FontRenderingShader->Uniforms[2], 0);
-    glUniform4f(FontRenderingShader->Uniforms[3], Color.r, Color.g, Color.b, Alpha);
-    glUniform1i(FontRenderingShader->Uniforms[4], 0);
+    glUniformMatrix4fv(FontRenderingShader->Bindings[0], 1, GL_FALSE, (const float *) ViewProj.E);
+    glUniformMatrix4fv(FontRenderingShader->Bindings[1], 1, GL_FALSE, (const float *) World.E);
+    glUniform1i(FontRenderingShader->Bindings[2], 0);
+    glUniform4f(FontRenderingShader->Bindings[3], Color.r, Color.g, Color.b, Alpha);
+    glUniform1i(FontRenderingShader->Bindings[4], 0);
     
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->VBO[0]);
+    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[20]);
     glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v3), 0, GL_DYNAMIC_DRAW_ARB);
     glBufferSubData(GL_ARRAY_BUFFER_ARB, 0, VertexCount * sizeof(v3), vdata);
     glEnableVertexAttribArray(0);
 
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->VBO[1]);
+    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[21]);
     glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v2), 0, GL_DYNAMIC_DRAW_ARB);
     glBufferSubData(GL_ARRAY_BUFFER_ARB, 0, VertexCount * sizeof(v2), texdata);
     glEnableVertexAttribArray(1);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, FontRenderingShader->IBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[22]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER_ARB, IndexCount * sizeof(u16), 0, GL_DYNAMIC_DRAW_ARB);
     glBufferSubData(GL_ELEMENT_ARRAY_BUFFER_ARB, 0, IndexCount * sizeof(u16), idata);
     
@@ -925,7 +1080,7 @@ aglRenderText3D(agl_ttf_font *Font, char *Text, r32 Scale = 1.0f,
 }
 
 void
-aglRenderText2D(agl_ttf_font *Font, char *Text,
+aglRenderText2D(agl_font_stbttf *Font, char *Text,
                 r32 X = 0.f, r32 Y = 0.f,
                 v3 Color = V3(1.0f, 1.0f, 1.0f), r32 Alpha = 0.f)
 {
@@ -946,52 +1101,51 @@ aglRenderText2D(agl_ttf_font *Font, char *Text,
     for(char *c = Text; *c; c++)
     {
         stbtt_aligned_quad Quad;
-        if(*c == '\n') {
-            *c = ' ';
-
-        }
-        stbtt_GetPackedQuad(Font->CharacterInfo, Font->Width, Font->Height,
-                            *c - AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER,
-                            &OffsetX, &OffsetY, &Quad, 1);
-
-        *v++ = {Quad.x0, -Quad.y1, 0 }; *v++ = {Quad.x0, -Quad.y0, 0};
-        *v++ = {Quad.x1,  -Quad.y0 , 0}; *v++ = {Quad.x1, -Quad.y1, 0};
-
-        *t++ = {Quad.s0, Quad.t1}; *t++ = {Quad.s0, Quad.t0};
-        *t++ = {Quad.s1, Quad.t0}; *t++ = {Quad.s1, Quad.t1};
-
-        *i++ = LastIndex; *i++ = LastIndex+1; *i++ = LastIndex+2;
-        *i++ = LastIndex; *i++ = LastIndex+2; *i++ = LastIndex+3;
+        if(*c >= AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER && *c <= (AGL_TRUETYPE_DEFAULT_CHARACTERS + AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER))
+        {
+            stbtt_GetPackedQuad(Font->CharacterInfo, Font->Width, Font->Height,
+                                *c - AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER,
+                                &OffsetX, &OffsetY, &Quad, 1);
         
-        LastIndex += 4;
+            *v++ = {Quad.x0, -Quad.y1, 0 }; *v++ = {Quad.x0, -Quad.y0, 0};
+            *v++ = {Quad.x1,  -Quad.y0 , 0}; *v++ = {Quad.x1, -Quad.y1, 0};
+
+            *t++ = {Quad.s0, Quad.t1}; *t++ = {Quad.s0, Quad.t0};
+            *t++ = {Quad.s1, Quad.t0}; *t++ = {Quad.s1, Quad.t1};
+
+            *i++ = LastIndex; *i++ = LastIndex+1; *i++ = LastIndex+2;
+            *i++ = LastIndex; *i++ = LastIndex+2; *i++ = LastIndex+3;
+        
+            LastIndex += 4;
+        }
     }
 
-    glUseProgram(FontRenderingShader->Id);
+    glUseProgram(FontRenderingShader->Program);
 
     glBindTexture(GL_TEXTURE_2D, Font->Texture);
-    glUniform1i(FontRenderingShader->Uniforms[2], 0);
-    glUniform1i(FontRenderingShader->Uniforms[4], 1);
-    glUniform4f(FontRenderingShader->Uniforms[5], __agl_Context.Width, __agl_Context.Height, X+1, Y-1);
+    glUniform1i(FontRenderingShader->Bindings[2], 0);
+    glUniform1i(FontRenderingShader->Bindings[4], 1);
     
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->VBO[0]);
+    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[20]);
     glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v3), 0, GL_DYNAMIC_DRAW_ARB);
     glBufferSubData(GL_ARRAY_BUFFER_ARB, 0, VertexCount * sizeof(v3), vdata);
     glEnableVertexAttribArray(0);
 
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->VBO[1]);
+    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[21]);
     glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v2), 0, GL_DYNAMIC_DRAW_ARB);
     glBufferSubData(GL_ARRAY_BUFFER_ARB, 0, VertexCount * sizeof(v2), texdata);
     glEnableVertexAttribArray(1);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, FontRenderingShader->IBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[22]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER_ARB, IndexCount * sizeof(u16), 0, GL_DYNAMIC_DRAW_ARB);
     glBufferSubData(GL_ELEMENT_ARRAY_BUFFER_ARB, 0, IndexCount * sizeof(u16), idata);
-
+/*
+    glUniform4f(FontRenderingShader->Uniforms[5], __agl_Context.Width, __agl_Context.Height, X+1, Y-1);
     glUniform4f(FontRenderingShader->Uniforms[3], (u8) (255 - (u8)Color.r), (u8) (255 - (u8)Color.g), (u8) (255 - (u8)Color.b), Alpha);
     glDrawElements(GL_TRIANGLES, IndexCount, GL_UNSIGNED_SHORT, 0);
-    
-    glUniform4f(FontRenderingShader->Uniforms[5], __agl_Context.Width, __agl_Context.Height, X, Y);
-    glUniform4f(FontRenderingShader->Uniforms[3], Color.r, Color.g, Color.b, Alpha);    
+*/  
+    glUniform4f(FontRenderingShader->Bindings[5], __agl_Context.Width, __agl_Context.Height, X, Y);
+    glUniform4f(FontRenderingShader->Bindings[3], Color.r, Color.g, Color.b, Alpha);    
     glDrawElements(GL_TRIANGLES, IndexCount, GL_UNSIGNED_SHORT, 0);
     
     glDisableVertexAttribArray(1);

@@ -1,5 +1,4 @@
 #if !defined(AGL_SHADERS_H)
-#define GLSL(source) "#version 330\n" #source
 
 GLint
 aglCompileShader(const char *Source, GLenum Type)
@@ -11,7 +10,7 @@ aglCompileShader(const char *Source, GLenum Type)
         glCompileShader(Result);
 
         GLint Status;
-        glGetShader(Result, GL_COMPILE_STATUS, &Status);
+        glGetShaderiv(Result, GL_COMPILE_STATUS, &Status);
         if(!Status)
         {
             int Length = 0;
@@ -52,7 +51,7 @@ aglLinkProgram(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
         aglAttachShaders(ProgramID, ShaderArray, Length);
         glLinkProgram(ProgramID);
         GLint Status;
-        glGetProgram(ProgramID, GL_LINK_STATUS, &Status);
+        glGetProgramiv(ProgramID, GL_LINK_STATUS, &Status);
         if(Status != GL_TRUE)
         {
             int Length = 0;
@@ -114,6 +113,8 @@ AGL_SHADERS_FRAG_3 = GLSL
             vec3 diffuse;
             vec3 specular;
         };
+
+        uniform sampler2D shadowMap;
         
         uniform agl_material material;
         uniform agl_light light;
@@ -122,27 +123,67 @@ AGL_SHADERS_FRAG_3 = GLSL
         in vec3 FragPos;
         in vec2 UV;
         in vec3 Normal;
-        
-        out vec4 color;
+        in vec4 FragPosLightSpace;
+
+        uniform bool blinn = false;
+        out vec4 FragColor;
+
+        float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
+        {
+            // perform perspective divide
+            vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+            // Transform to [0,1] range
+            projCoords = projCoords * 0.5 + 0.5;
+            // Get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+            float closestDepth = texture(shadowMap, projCoords.xy).r; 
+            // Get depth of current fragment from light's perspective
+            if(projCoords.z > 1.0) return 0.0;
+            
+            float currentDepth = projCoords.z;
+
+            //float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.0001);
+            float bias = 0.000125;
+            float shadow = 0.0;
+            vec2 texelSize = .33 / textureSize(shadowMap, 0);
+            for(int x = -1; x <= 1; ++x)
+            {
+                for(int y = -1; y <= 1; ++y)
+                {
+                    float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
+                    shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;        
+                }    
+            }
+            shadow /= 24.0;        
+
+            return shadow;
+        } 
         
         void main(){
-            // Ambient
-            vec3  ambient = light.ambient * material.ambient;
+            vec3  color = material.ambient;
+            vec3  normal = normalize(Normal);
+            vec3  lightColor = vec3(1.0);//vec3(0.125, 0.3, 0.7);
             
-            // Diffuse
-            vec3  norm = normalize(Normal);
+            vec3  ambient = 0.15 * color;
+            
             vec3  lightDir = normalize(light.position - FragPos);
-            float diff = max(dot(norm, lightDir), 0.0);
-            vec3  diffuse = light.diffuse * (diff * material.diffuse);
+            float diff = max(dot(lightDir, normal), 0.0);
+            vec3  diffuse = diff * lightColor;
 
-            // Specular
-            vec3  viewDir = normalize(viewPos - FragPos);
-            vec3  reflectDir = reflect(-lightDir, norm);  
-            float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-            vec3  specular = light.specular * (spec * material.specular);
+            float spec;
+            vec3 viewDir = normalize(viewPos - FragPos);
+            if(blinn == true)
+            {
+                vec3 reflectDir = reflect(-lightDir, normal);  
+                spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+            } else {
+                vec3 halfwayDir = normalize(lightDir + viewDir);
+                spec = pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
+            }
+            vec3 specular = spec * lightColor;
+            float shadow = ShadowCalculation(FragPosLightSpace, normal, lightDir);
             
-            //color = texture( texture2D, UV ).rgb * material.diffuse;
-            color = vec4(ambient + diffuse + specular, 1);// * texture(texture2D, UV);
+            vec3 lighting = ((ambient + (2.0 - shadow)) * (diffuse + specular)) * color;
+            FragColor = vec4(lighting, 1.0);
         }
      );
 
@@ -197,26 +238,54 @@ AGL_SHADERS_VERT_4 = GLSL
         layout(location = 0) in vec3 vertexPosition;
         layout(location = 1) in vec2 vertexUV;
         layout(location = 2) in vec3 vertexNormal;
-
-        uniform vec3 baseColor;
+        layout(location = 3) in vec3 vertexColor;
         
         uniform mat4 matrixModelViewProj;
-        uniform mat4 matrixProj;
         uniform mat4 matrixModel;
         uniform mat4 matrixView;
-        uniform mat4 matrixInverse;
+        uniform mat4 matrixSpace;
 
         out vec2 UV;
         out vec3 Normal;
         out vec3 FragPos;
+        out vec4 FragPosLightSpace;
         
         void main(){
             gl_Position = matrixModelViewProj * vec4(vertexPosition, 1);
             UV = vertexUV;
-            Normal = vertexNormal;
             FragPos = vec3(matrixModel * vec4(vertexPosition, 1));
+            Normal = transpose(inverse(mat3(matrixModel))) * vertexNormal;
+            FragPosLightSpace = matrixSpace * vec4(FragPos, 1.0);
         }
      );
+
+const char *
+AGL_SHADERS_VERT_GENERAL = GLSL
+    (
+        layout(location = 0) in vec3 Position;
+        layout(location = 1) in vec2 TextureCoord;
+        layout(location = 2) in vec3 Normal;
+        layout(location = 3) in vec3 Color;
+
+        uniform mat4 MatrixMVP;
+        uniform mat4 MatrixModel;
+        uniform mat4 MatrixView;
+        uniform mat4 MatrixSpace;
+
+        out vec2 Pass;
+        out vec3 Normal;
+        out vec3 FragPos;
+        out vec4 FragPosLightSpace;
+        
+        void main(){
+            gl_Position = matrixModelViewProj * vec4(vertexPosition, 1);
+            UV = vertexUV;
+            FragPos = vec3(matrixModel * vec4(vertexPosition, 1));
+            Normal = transpose(inverse(mat3(matrixModel))) * vertexNormal;
+            FragPosLightSpace = matrixSpace * vec4(FragPos, 1.0);
+        }
+     );
+
 
 const char *
 AGL_16x16BATCHDRAW_VS = GLSL
@@ -239,30 +308,6 @@ AGL_16x16BATCHDRAW_VS = GLSL
         }
      );
 
-
-const char *
-AGL_SHADER_SHADOWMAP_VS = GLSL
-    (
-        layout(location = 0) in vec3 vertexPosition;
-
-        uniform mat4 depthMVP;
-        
-        void main()
-        {
-            gl_Position = depthMVP * vec(vertexPosition, 1);
-        }
-     );
-
-const char *
-AGL_SHADER_SHADOWMAP_FS = GLSL
-    (
-        layout(location = 0) out float fragmentdepth;
-        
-        void main()
-        {
-            fragmentdepth = gl_FragCoord.z;
-        }
-);
 #define AGL_SHADERS_H
 #endif
 
