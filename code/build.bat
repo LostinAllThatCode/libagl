@@ -17,6 +17,6 @@ REM cl %CompilerFlags% ..\code\game.cpp /link %LinkerFlags% win32_agl.lib %Suppr
 
 cl %CompilerFlags% ..\code\model_editor.cpp /link %LinkerFlags%
 
-REM cl %CompilerFlags% ..\code\test.cpp /link %LinkerFlags%
+cl %CompilerFlags% ..\code\test.cpp /link %LinkerFlags%
 REM cl %CompilerFlags% ..\code\hash_test.cpp /link %LinkerFlags%
 popd

@@ -119,9 +119,6 @@ loadCubemap(char *Textures[])
 int
 main(int argc, char **argv)
 {
-
-    printf("%zu\n", sizeof(agl_material));
-    return 0;
     char Title[128];
     b32 Paused = false;
 
