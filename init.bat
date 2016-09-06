@@ -1,6 +1,6 @@
 @echo off
 call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
-if %HOMEDEV%==1 goto :location2
+if defined HOMEDEV goto location2
 echo Default location settings loaded.
 PATH=%PATH%;C:\Development\Editor\Emacs\bin
 goto end

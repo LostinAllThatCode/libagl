@@ -512,6 +512,7 @@ typedef struct
 {
     agl_key_state Keys[256], Buttons[3];
     s32 MouseX, MouseY, MouseXDelta, MouseYDelta, MouseWheelDelta;
+    s32 MouseXScreen, MouseYScreen;
 } agl_input;
 
 typedef struct 
@@ -537,7 +538,6 @@ typedef struct
     s32                  Width;
     s32                  Height;
     s32                  FPS;
-
     
     r32                  Delta;
     u32                  FrameCount;
@@ -739,6 +739,12 @@ aglCloseWindow()
     aglPlatformCloseWindow();
 };
 
+static r32
+aglGetDelta()
+{
+    return __agl_Context.Delta;
+};
+
 static b32
 aglHandleEvents()
 {
@@ -752,7 +758,7 @@ aglHandleEvents()
         __agl_Context.StartTime = Now;
     }
     
-    __agl_Context.Delta = (Now - __agl_Context.TicksLastFrame) / 1000.f;;
+    __agl_Context.Delta = (Now - __agl_Context.TicksLastFrame) / 1000.f;
     __agl_Context.TicksLastFrame = Now;
     
     for(s32 i=0; i < 256; i++) {
@@ -792,6 +798,19 @@ aglKeyUp(u8 Key)
 {
     return __agl_Context.Input.Keys[Key].EndedDown;
 }
+
+static s32
+aglGetMouseX()
+{
+    return __agl_Context.Input.MouseX;
+}
+
+static s32
+aglGetMouseY()
+{
+    return __agl_Context.Input.MouseY;
+}
+
 
 static b32
 aglMouseDown(u32 MouseButton)
@@ -845,6 +864,7 @@ aglSetWindowTitle(char * Title)
 {
     aglPlatformSetWindowTitle(Title);
 }
+
 static void
 aglCleanup()
 {
@@ -887,8 +907,12 @@ aglPlatformToggleFullscreen()
 AGLDEF void
 aglPlatformHandleEvents()
 {
-    __agl_Context.Input.MouseXDelta = 0;
-    __agl_Context.Input.MouseYDelta = 0;
+    POINT MousePos;
+    GetCursorPos(&MousePos);
+    __agl_Context.Input.MouseXDelta  = MousePos.x - __agl_Context.Input.MouseXScreen;
+    __agl_Context.Input.MouseYDelta  = MousePos.y - __agl_Context.Input.MouseYScreen;
+    __agl_Context.Input.MouseXScreen = MousePos.x;
+    __agl_Context.Input.MouseYScreen = MousePos.y;
     __agl_Context.Input.MouseWheelDelta = 0;
     
     MSG msg;
@@ -958,12 +982,8 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }break;
         case WM_MOUSEMOVE:
         {                        
-            s32 X = GET_X_LPARAM(lParam);
-            s32 Y = GET_Y_LPARAM(lParam);
-            __agl_Context.Input.MouseXDelta = X - __agl_Context.Input.MouseX;
-            __agl_Context.Input.MouseYDelta = Y - __agl_Context.Input.MouseY;
-            __agl_Context.Input.MouseX = X;
-            __agl_Context.Input.MouseY = Y;
+            __agl_Context.Input.MouseX = GET_X_LPARAM(lParam);
+            __agl_Context.Input.MouseY = GET_Y_LPARAM(lParam);
             return 0;
         }break;
         case WM_MBUTTONUP: { __agl_Context.Input.Buttons[2].EndedDown = true; return 0;}
@@ -1325,31 +1345,7 @@ AGLDEF void aglPlatformSwapBuffers()
 
 AGLDEF void aglPlatformCloseWindow() { DestroyWindow(__agl_Context.Platform.HWnd); }
 AGLDEF void aglPlatformSetWindowTitle(char *Title) { SetWindowText(__agl_Context.Platform.HWnd, Title); }
-#if 0
-AGLDEF void aglPlatformBeginFrame()
-{
-    __agl_Context.Platform.TickBegin = __rdtsc();
-    QueryPerformanceCounter(&__agl_Context.Platform.FrameBegin);
-};
 
-AGLDEF void aglPlatformEndFrame() {
-    __agl_Context.Platform.TickEnd = __rdtsc();
-    QueryPerformanceCounter(&__agl_Context.Platform.FrameEnd);
-    
-    LARGE_INTEGER ElapsedTime;
-    ElapsedTime.QuadPart = __agl_Context.Platform.FrameEnd.QuadPart - __agl_Context.Platform.FrameBegin.QuadPart;
-    ElapsedTime.QuadPart *= 1000000;
-    ElapsedTime.QuadPart /= __agl_Context.Platform.Frequency.QuadPart;
-
-    __agl_Context.Ticks = __agl_Context.Platform.TickEnd - __agl_Context.Platform.TickBegin;
-    __agl_Context.Delta = ElapsedTime.QuadPart / 1000000.0f;
-    __agl_Context.FPS = 1.0f / __agl_Context.Delta;
-    __agl_Context.Time += __agl_Context.Delta;
-
-    __agl_Context.Input.MouseXDelta = 0;
-    __agl_Context.Input.dY = 0;
-};
-#endif
 AGLDEF b32 aglPlatformIsActive()
 {
     return __agl_Context.Active;
