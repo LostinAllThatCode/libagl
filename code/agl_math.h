@@ -276,6 +276,7 @@ union v4
     struct { r32 Ignored4_; r32 Ignored5_; v2 zw; };
     r32 E[4];
 };
+typedef v4 quat;
 
 // NOTE: 4D vector initialization
 inline v4
@@ -493,44 +494,53 @@ union mat4x4
 
 // NOTE: General 3x3 and 4x4 matrix operations
 inline mat3x3
-NullMat3x3()
+Mat3(r32 e)
 {
-    mat3x3 Result = {};
-    return Result;
-}
-
-inline mat4x4
-NullMat4x4()
-{
-    mat4x4 Result = {};
-    return Result;
+  mat3x3 Result = {
+      e, 0.0f, 0.0f,
+      0.0f, e, 0.0f,
+      0.0f, 0.0f, e
+  };
+  return Result;  
 }
 
 inline mat3x3
-IdentityMat3x3()
+Mat3(s32 e)
 {
     mat3x3 Result = {
-        1.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 1.0f
+        (r32) e, 0.0f, 0.0f,
+        0.0f, (r32) e, 0.0f,
+        0.0f, 0.0f, (r32) e
     };
-    return Result;
+    return Result;  
 }
 
 inline mat4x4
-IdentityMat4x4()
+Mat4(r32 e)
 {
-    mat4x4 Result = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    };
-    return Result;
+  mat4x4 Result = {
+      e, 0.0f, 0.0f, 0.0f, 
+      0.0f, e, 0.0f, 0.0f,
+      0.0f, 0.0f, e, 0.0f,
+      0.0f, 0.0f, 0.0f, e
+  };
+  return Result;  
 }
 
 inline mat4x4
-TranslationMatrix(r32 x, r32 y, r32 z)
+Mat4(s32 e)
+{
+  mat4x4 Result = {
+      (r32) e, 0.0f, 0.0f, 0.0f, 
+      0.0f, (r32) e, 0.0f, 0.0f,
+      0.0f, 0.0f, (r32) e, 0.0f,
+      0.0f, 0.0f, 0.0f, (r32) e
+  };
+  return Result;  
+}
+
+inline mat4x4
+TrlMat(r32 x, r32 y, r32 z)
 {
     mat4x4 Result = {
         1.0f, 0.0f, 0.0f, 0.0f,
@@ -542,7 +552,7 @@ TranslationMatrix(r32 x, r32 y, r32 z)
 }
 
 inline mat4x4
-ScaleMatrix(r32 x, r32 y, r32 z)
+SclMat(r32 x, r32 y, r32 z)
 {
     mat4x4 Result = {
         x,    0.0f, 0.0f, 0.0f,
@@ -553,18 +563,18 @@ ScaleMatrix(r32 x, r32 y, r32 z)
     return Result;
 }
 
-//TODO: Rotation matrix implementation
-#if 0
 inline mat4x4
-RotationMatrix(r32 Angle, r32 x, r32 y, r32 z)
+RotMat(r32 Angle, r32 x, r32 y, r32 z)
 {
-    mat4x4 Result = NullMat4x4();
+    r32 s = sinf(Angle);
+    mat4x4 Result = {
+        
+    };
     return Result;    
 }
-#endif
 
 inline mat3x3
-MultMat3x3(mat3x3 A, mat3x3 B)
+MulMat3(mat3x3 A, mat3x3 B)
 {
     mat3x3 Result;
     Result.m0 = (A.m0 * B.m0) + (A.m3 * B.m1) + (A.m6 * B.m2);
@@ -580,7 +590,7 @@ MultMat3x3(mat3x3 A, mat3x3 B)
 }
 
 inline mat3x3
-MultMat3x3(mat3x3 A, r32 V)
+MulMat3(mat3x3 A, r32 V)
 {
     mat3x3 Result;
     Result.m0 *= V; Result.m3 *= V; Result.m6 *= V;
@@ -590,7 +600,7 @@ MultMat3x3(mat3x3 A, r32 V)
 }
 
 inline mat4x4
-MultMat4x4(mat4x4 A, mat4x4 B)
+MulMat4(mat4x4 A, mat4x4 B)
 {
     mat4x4 Result;
     Result.m0  = (A.m0 * B.m0)  + (A.m4 * B.m1)  + (A.m8  * B.m2)  + (A.m12 * B.m3);
@@ -613,7 +623,7 @@ MultMat4x4(mat4x4 A, mat4x4 B)
 }
 
 inline mat4x4
-MultMat4x4(mat4x4 A, r32 V)
+MulMat4(mat4x4 A, r32 V)
 {
     mat4x4 Result;
     Result.m0 *= V; Result.m4 *= V; Result.m8 *= V;  Result.m12 *= V; 
@@ -624,7 +634,7 @@ MultMat4x4(mat4x4 A, r32 V)
 }
 
 inline mat4x4
-Transpose(mat4x4 M)
+TransposeMat4(mat4x4 M)
 {
     mat4x4 Temp;
     Temp.m0 = M.m0;   Temp.m4 = M.m1;   Temp.m8 = M.m2;   Temp.m12 = M.m3;
@@ -648,7 +658,7 @@ DeterminantMat4x4(mat4x4 A)
 
 
 inline r32
-DeterminantMat4x4(mat4x4 A)
+DetMat4(mat4x4 A)
 {
     r32 det = 0;
     r32 *m = A.E;
@@ -677,7 +687,7 @@ DeterminantMat4x4(mat4x4 A)
 
 
 inline mat4x4
-InverseMat4x4(mat4x4 A)
+InvMat4(mat4x4 A)
 {
     mat4x4 Result = A;
     r32 *m = A.E;    
@@ -714,9 +724,9 @@ InverseMat4x4(mat4x4 A)
 }
 
 inline mat4x4
-FrustumMatrix(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
+FrustumMat(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
 {
-    mat4x4 Result = NullMat4x4();
+    mat4x4 Result = Mat4(0);
 #if 0
     Result.m0  = (Near * 2.0f) / (Right - Left);
     Result.m5  = (Near * 2.0f) / (Top - Bottom);
@@ -738,39 +748,39 @@ FrustumMatrix(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
 }
 
 inline mat4x4
-PerspectiveMatrix(r32 FoV, r32 Aspect, r32 Near, r32 Far)
+PerspectiveMat(r32 FoV, r32 Aspect, r32 Near, r32 Far)
 {
     r32 Top   = Near * tanf(FoV * M_PI / 360);
     r32 Right = Top * Aspect;
-    return FrustumMatrix(-Right, Right, -Top, Top, Near, Far);
+    return FrustumMat(-Right, Right, -Top, Top, Near, Far);
 }
 
 inline mat4x4
-LookAtMatrix(v3 Eye, v3 Target, v3 Up)
+LookAtMat(v3 Eye, v3 Target, v3 Up)
 {
-    mat4x4 Result = NullMat4x4();
+    mat4x4 Result = Mat4(0);
     v3 z = NormalizeV3(Eye - Target);
     v3 x = NormalizeV3(CrossV3(Up, z));
     v3 y = NormalizeV3(CrossV3(z, x));
     Result.m0 = x.x;
     Result.m1 = x.y;
     Result.m2 = x.z;
-    Result.m3 = -((x.x*Eye.x) + (x.y*Eye.y) + (x.z*Eye.z));
+    Result.m3 = DotV3(x, -Eye);
     Result.m4 = y.x;
     Result.m5 = y.y;
     Result.m6 = y.z;
-    Result.m7 = -((y.x*Eye.x) + (y.y*Eye.y) + (y.z*Eye.z));
+    Result.m7 = DotV3(y, -Eye);
     Result.m8 = z.x;
     Result.m9 = z.y;
     Result.m10 = z.z;
-    Result.m11 = -((z.x*Eye.x) + (z.y*Eye.y) + (z.z*Eye.z));
+    Result.m11 = DotV3(z, -Eye);
     Result.m15 = 1.0f;
     return Result;
 }
 inline mat4x4
-OrhtogonalMatrix(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
+OrhtoMat(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
 {
-    mat4x4 Result = NullMat4x4();
+    mat4x4 Result = Mat4(0);
     Result.m0 = 2 / (Right - Left);
     Result.m5 = 2 / (Top - Bottom);
     Result.m10 = -2 / (Far - Near);

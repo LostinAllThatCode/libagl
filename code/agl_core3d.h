@@ -107,7 +107,7 @@ extern "C" {
     agl_drawable *__agl_Objects[AGL_CORE3D_OBJECTS_MAX];
     s32 __agl_ObjectCounter;
 
-    #define GLSL(source) "#version 330\n" #source
+   #define GLSL(core, source) "#version "#core"\n" #source
     #include "agl_shaders.h"
     enum { AGL_SHADER_TYPE_CUSTOM = 0,
            AGL_SHADER_TYPE_SHADOWMAP = 1,
@@ -178,12 +178,12 @@ aglInitDefaultShader()
     agl_shader Result = {}; 
     
     s32 Results[] = {
-        aglCompileShader(AGL_SHADERS_VERT_4, GL_VERTEX_SHADER),
-        aglCompileShader(AGL_SHADERS_FRAG_3, GL_FRAGMENT_SHADER)
+        aglShaderCompile(AGL_SHADERS_VERT_4, GL_VERTEX_SHADER),
+        aglShaderCompile(AGL_SHADERS_FRAG_3, GL_FRAGMENT_SHADER)
     };
     Result.Id = glCreateProgram();
     Result.IsDefault = true;
-    if(aglLinkProgram(Result.Id, Results, 2))
+    if(aglShaderLink(Result.Id, Results, 2))
     {
         Result.Matrix[0] = glGetUniformLocation(Result.Id, "matrixModelViewProj");
         Result.Matrix[1] = glGetUniformLocation(Result.Id, "matrixModel");
@@ -206,62 +206,6 @@ aglInitDefaultShader()
         Result.Success = true;
     }
     AGL_ASSERT(Result.Success);
-    return Result;
-}
-
-static b32
-aglShaderCompileAndAttach(agl_shader_ext *Shader, const char *ShaderSource, GLenum Type)
-{
-    b32 Result = false;
-    u32 ShaderID = glCreateShader(Type);
-    if(glGetError() != GL_INVALID_ENUM)
-    {
-        glShaderSource(ShaderID, 1, &ShaderSource, 0);
-        glCompileShader(ShaderID);
-        
-        s32 Status;
-        glGetShaderiv(ShaderID, GL_COMPILE_STATUS, &Status);
-        if(Status == GL_FALSE)
-        {
-#if defined(AGL_DEBUG)
-            s32 Length = 0;
-            char ErrorMessage[1024];
-            glGetShaderInfoLog(ShaderID, 1024, &Length, ErrorMessage);
-            AGL_DEBUG_PRINT("%s\n", ErrorMessage);
-#endif
-            Result = false;
-            AGL_ASSERT(false);
-        } else {
-            glAttachShader(Shader->Program, ShaderID);
-            Result = true;
-        }
-    }
-    return Result;
-}
-
-static b32
-aglShaderLink(agl_shader_ext *Shader)
-{
-    b32 Result = false;
-    glLinkProgram(Shader->Program);
-    if(glGetError() != GL_INVALID_VALUE && glGetError() != GL_INVALID_OPERATION)
-    {
-        s32 Status;
-        glGetProgramiv(Shader->Program, GL_LINK_STATUS, &Status);
-        if(Status == GL_FALSE)
-        {
-#if defined(AGL_DEBUG)
-            s32 Length = 0;
-            char ErrorMessage[1024];
-            glGetProgramInfoLog(Shader->Program, 1024, &Length, ErrorMessage);
-            AGL_DEBUG_PRINT("%s\n", ErrorMessage);
-#endif
-            AGL_ASSERT(false);
-        } else {
-            glUseProgram(Shader->Program);
-            Result = true;
-        }
-    }
     return Result;
 }
 
@@ -379,15 +323,15 @@ aglCameraView(agl_camera *Camera)
             Camera->Right = V3(cosf(Camera->Yaw + M_PI/2.0f), 0, sinf(Camera->Yaw + M_PI/2.0f));
             Camera->Right = NormalizeV3(Camera->Right);
             
-            Result = LookAtMatrix(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
+            Result = LookAtMat(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
         }break;
         case AGL_CAMERA_MODE_STATIC:
         {
-            Result = LookAtMatrix(Camera->Position, Camera->Front, Camera->Up);
+            Result = LookAtMat(Camera->Position, Camera->Front, Camera->Up);
         }break;
         case AGL_CAMERA_MODE_TARGET:
         {
-            Result = LookAtMatrix(Camera->Position, *Camera->Target, Camera->Up);
+            Result = LookAtMat(Camera->Position, *Camera->Target, Camera->Up);
         }break;
         case AGL_CAMERA_MODE_FIRSTPERSON:
         {
@@ -397,7 +341,7 @@ aglCameraView(agl_camera *Camera)
             Camera->Right = V3(cosf(Camera->Yaw + M_PI/2.0f), 0, sinf(Camera->Yaw + M_PI/2.0f));
             Camera->Right = NormalizeV3(Camera->Right);
             
-            Result = LookAtMatrix(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
+            Result = LookAtMat(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
         }break;
         default:
         {
@@ -410,12 +354,11 @@ aglCameraView(agl_camera *Camera)
 static b32
 aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
 {
-    v3 *Test;
     b32 Result = false;
     s32 Errors = 0;
     if(Mesh)
     {
-        s32 Mode = (Dynamic ? GL_DYNAMIC_DRAW_ARB : GL_STATIC_DRAW_ARB);
+        s32 Mode = (Dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
         if(Mesh->VertexCount > 0)
         {
             glGenVertexArrays(1, &Mesh->VAO);
@@ -428,8 +371,8 @@ aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
             {
                 glGenBuffers(1, Mesh->VBO);
                 if (glGetError()) Errors++;
-                glBindBuffer(GL_ARRAY_BUFFER_ARB, Mesh->VBO[0]);
-                glBufferData(GL_ARRAY_BUFFER_ARB, Mesh->VertexCount * sizeof(v3), Mesh->Vertices, Mode);
+                glBindBuffer(GL_ARRAY_BUFFER, Mesh->VBO[0]);
+                glBufferData(GL_ARRAY_BUFFER, Mesh->VertexCount * sizeof(v3), Mesh->Vertices, Mode);
                 glEnableVertexAttribArray(0);
                 glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
@@ -439,8 +382,8 @@ aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
             {
                 glGenBuffers(1, Mesh->VBO + 1);
                 if (glGetError()) Errors++;
-                glBindBuffer(GL_ARRAY_BUFFER_ARB, Mesh->VBO[1]);
-                glBufferData(GL_ARRAY_BUFFER_ARB, Mesh->VertexCount * sizeof(v2), Mesh->TextureCoords, Mode);
+                glBindBuffer(GL_ARRAY_BUFFER, Mesh->VBO[1]);
+                glBufferData(GL_ARRAY_BUFFER, Mesh->VertexCount * sizeof(v2), Mesh->TextureCoords, Mode);
                 glEnableVertexAttribArray(1);
                 glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
             }
@@ -449,8 +392,8 @@ aglGenBuffer(agl_mesh *Mesh, b32 Dynamic = false)
             {
                 glGenBuffers(1, Mesh->VBO + 2);
                 if (glGetError()) Errors++;
-                glBindBuffer(GL_ARRAY_BUFFER_ARB, Mesh->VBO[2]);
-                glBufferData(GL_ARRAY_BUFFER_ARB, Mesh->VertexCount * sizeof(v3), Mesh->Normals, Mode);
+                glBindBuffer(GL_ARRAY_BUFFER, Mesh->VBO[2]);
+                glBufferData(GL_ARRAY_BUFFER, Mesh->VertexCount * sizeof(v3), Mesh->Normals, Mode);
                 glEnableVertexAttribArray(2);
                 glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
             }
@@ -469,6 +412,7 @@ aglDelete(agl_drawable *Drawable)
     if(Drawable->Mesh.TextureCoords)  AGL_FREE(Drawable->Mesh.TextureCoords, 0);
     if(Drawable->Mesh.Normals)        AGL_FREE(Drawable->Mesh.Normals, 0);
 
+    glBindVertexArray(0);
     glDeleteVertexArrays(1, &Drawable->Mesh.VAO);
     AGL_ASSERT(glGetError() != GL_INVALID_VALUE);
 
@@ -612,6 +556,7 @@ aglPrimitiveCube(r32 Size = 1.0f)
             __agl_Objects[__agl_ObjectCounter++] = Result;
         } else aglDelete(Result);
     }
+    AGL_ASSERT(Result);
     return Result;
 }
 
@@ -622,7 +567,7 @@ aglBeginScene3D(agl_context *Context, agl_camera *Camera)
     
     glViewport(0, 0, Context->Width, Context->Height);
 
-    CurrentProjectionMatrix = PerspectiveMatrix(Camera->FoV, (r32)Context->Width / (r32)Context->Height, .1f, 1000.0f);
+    CurrentProjectionMatrix = PerspectiveMat(Camera->FoV, (r32)Context->Width / (r32)Context->Height, .1f, 1000.0f);
     CurrentViewMatrix       = aglCameraView(Camera);
 
     ActiveCamera = Camera;
@@ -631,13 +576,13 @@ aglBeginScene3D(agl_context *Context, agl_camera *Camera)
 inline void
 aglEndScene3D(agl_context *Context, agl_camera *Camera)
 {
-    CurrentProjectionMatrix = IdentityMat4x4();
-    CurrentViewMatrix       = IdentityMat4x4();
+    CurrentProjectionMatrix = Mat4(1);
+    CurrentViewMatrix       = Mat4(1);
 }
 
 
 inline void
-aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = IdentityMat4x4(), agl_shader *Shader = 0, b32 ShowPoints = false)
+aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = Mat4(1), agl_shader *Shader = 0, b32 ShowPoints = false)
 {
     if(Drawable)
     {
@@ -655,8 +600,8 @@ aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = IdentityMat4x4(), agl_shade
             glUniform3f(Shader->Light[2], diffuse.r, diffuse.g, diffuse.b);
             glUniform3f(Shader->Light[3], specular.r, specular.g, specular.b);
 
-            mat4x4 Result = MultMat4x4(ModelMatrix, CurrentViewMatrix);
-            Result = MultMat4x4(Result, CurrentProjectionMatrix);
+            mat4x4 Result = MulMat4(ModelMatrix, CurrentViewMatrix);
+            Result = MulMat4(Result, CurrentProjectionMatrix);
 
             glUniformMatrix4fv(Shader->Matrix[0], 1, GL_FALSE, (const float *) Result.E);
             glUniformMatrix4fv(Shader->Matrix[1], 1, GL_FALSE, (const float *) ModelMatrix.E);
@@ -746,14 +691,12 @@ aglInitFont(const char *Filename,
     glBindTexture(GL_TEXTURE_2D, Result->Texture);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, Result->Width, Result->Height, 0, GL_RED, GL_UNSIGNED_BYTE, AtlasData);
-    glHint(GL_GENERATE_MIPMAP_HINT, GL_NICEST);
     glGenerateMipmap(GL_TEXTURE_2D);
 
     AGL_FREE(FontData, 0);
     AGL_FREE(AtlasData, 0);
     
     glBindTexture(GL_TEXTURE_2D, 0);
-    
     return Result;
 }
 
@@ -804,20 +747,20 @@ aglRenderableText(char *Text, agl_font_stbttf *Font)
 
     u32 _tmp;
     glGenBuffers(1, &_tmp);
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, _tmp);
-    glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v3), vdata, GL_STATIC_DRAW_ARB);
+    glBindBuffer(GL_ARRAY_BUFFER, _tmp);
+    glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(v3), vdata, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(0);
 
     glGenBuffers(1, &_tmp);
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, _tmp);
-    glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v2), texdata, GL_STATIC_DRAW_ARB);
+    glBindBuffer(GL_ARRAY_BUFFER, _tmp);
+    glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(v2), texdata, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(1);
 
     glGenBuffers(1, &_tmp);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, _tmp);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER_ARB, IndexCount * sizeof(u16), idata, GL_STATIC_DRAW_ARB);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _tmp);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexCount * sizeof(u16), idata, GL_STATIC_DRAW);
 
     glDisableVertexAttribArray(1);
     glDisableVertexAttribArray(0);
@@ -873,9 +816,11 @@ aglInitFontShader()
 
     const char * FragmentShader = GLSL
         (
-            uniform sampler2D mainTex;
             in vec2 uv0;
             in vec4 color;
+            
+            uniform sampler2D mainTex;
+            
             out vec4 fragColor;
         
             void main()
@@ -904,77 +849,79 @@ aglInitFontShader()
     Shader->Uniforms[5] = glGetUniformLocation(Shader->Id, "renderInfo");
     
     glGenBuffers(1, Shader->VBO);
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, Shader->VBO[0]);
-    glBufferData(GL_ARRAY_BUFFER_ARB, sizeof(v3), 0, GL_DYNAMIC_DRAW_ARB);
+    glBindBuffer(GL_ARRAY_BUFFER, Shader->VBO[0]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(v3), 0, GL_DYNAMIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
         
     glGenBuffers(1, Shader->VBO + 1);
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, Shader->VBO[1]);
-    glBufferData(GL_ARRAY_BUFFER_ARB, sizeof(v2), 0, GL_DYNAMIC_DRAW_ARB);
+    glBindBuffer(GL_ARRAY_BUFFER, Shader->VBO[1]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(v2), 0, GL_DYNAMIC_DRAW);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
     glGenBuffers(1, &Shader->IBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, Shader->IBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(u16), 0, GL_DYNAMIC_DRAW_ARB);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Shader->IBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16), 0, GL_DYNAMIC_DRAW);
 #else
     agl_shader_ext *Shader = (agl_shader_ext *) AGL_MALLOC(sizeof(agl_shader_ext), 0);
     const char * VertexShader = GLSL
-        (
-            in vec4 position;
-            in vec2 texCoord0;
+        ( 430,
+          in vec4 position;
+          in vec2 texCoord0;
 
-            uniform bool render2D = false;
-            uniform vec4 renderInfo;
+          uniform bool render2D = false;
+          uniform vec4 renderInfo;
             
-            uniform mat4 worldMatrix;
-            uniform mat4 viewProjMatrix;
-            uniform vec4 fontColor = vec4(1.0, 1.0, 1.0, 1.0);
+          uniform mat4 worldMatrix;
+          uniform mat4 viewProjMatrix;
+          uniform vec4 fontColor = vec4(1.0, 1.0, 1.0, 1.0);
         
-            out vec2 uv0;
-            out vec4 color;
+          out vec2 uv0;
+          out vec4 color;
         
-            void main()
-            {
-                if(render2D)
-                {
-                    vec2 halfdim = vec2(renderInfo.x, renderInfo.y)/2;
-                    vec2 pos = vec2(position) - halfdim;
-                    pos.x += renderInfo.z;
-                    pos.y += renderInfo.w;
-                    pos /= halfdim;
-                    gl_Position = vec4(pos.x,pos.y,0,1);
-                }
-                else
-                    gl_Position = viewProjMatrix * worldMatrix * position;
+          void main()
+          {
+              if(render2D)
+              {
+                  vec2 halfdim = vec2(renderInfo.x, renderInfo.y)/2;
+                  vec2 pos = vec2(position) - halfdim;
+                  pos.x += renderInfo.z;
+                  pos.y += renderInfo.w;
+                  pos /= halfdim;
+                  gl_Position = vec4(pos.x,pos.y,0,1);
+              }
+              else
+                  gl_Position = viewProjMatrix * worldMatrix * position;
                 
-                uv0 = texCoord0;
-                color = fontColor;
-            }
-         );
+              uv0 = texCoord0;
+              color = fontColor;
+          }
+          );
 
     const char * FragmentShader = GLSL
-        (
-            uniform sampler2D mainTex;
-            in vec2 uv0;
-            in vec4 color;
-            out vec4 fragColor;
+        ( 430,
+          in vec2 uv0;
+          in vec4 color;
+          out vec4 fragColor;
+          uniform sampler2D mainTex;
+            
         
-            void main()
-            {
-                vec4 c = texture(mainTex, uv0);
-                if(c.r != 0)
-                    fragColor = vec4(color.r * c.r, color.g * c.r, color.b * c.r, c.r - color.a);
-                else
-                    fragColor = vec4(c.r,c.r,c.r,0);
-            }
-         );
+          void main()
+          {
+              vec4 c = texture(mainTex, uv0);
+              if(c.r != 0)
+                  fragColor = vec4(color.r * c.r, color.g * c.r, color.b * c.r, c.r - color.a);
+              else
+                  fragColor = vec4(c.r,c.r,c.r,0);
+          }
+          );
 
+    
     Shader->Type = AGL_SHADER_TYPE_FONTS;
     Shader->Program = glCreateProgram();
-    if(aglShaderCompileAndAttach(Shader, VertexShader, GL_VERTEX_SHADER) &&
-       aglShaderCompileAndAttach(Shader, FragmentShader, GL_FRAGMENT_SHADER))
+    if(aglShaderCompileAndAttach(Shader->Program, VertexShader, GL_VERTEX_SHADER) &&
+       aglShaderCompileAndAttach(Shader->Program, FragmentShader, GL_FRAGMENT_SHADER))
     {
-        if(aglShaderLink(Shader))
+        if(aglShaderLink(Shader->Program))
         {
             aglShaderSetBinding(Shader, "viewProjMatrix");
             aglShaderSetBinding(Shader, "worldMatrix");
@@ -984,18 +931,18 @@ aglInitFontShader()
             aglShaderSetBinding(Shader, "renderInfo");
 
             glGenBuffers(1, Shader->Bindings + 20);
-            glBindBuffer(GL_ARRAY_BUFFER_ARB, Shader->Bindings[20]);
-            glBufferData(GL_ARRAY_BUFFER_ARB, sizeof(v3), 0, GL_DYNAMIC_DRAW_ARB);
+            glBindBuffer(GL_ARRAY_BUFFER, Shader->Bindings[20]);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(v3), 0, GL_DYNAMIC_DRAW);
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
         
             glGenBuffers(1, Shader->Bindings + 21);
-            glBindBuffer(GL_ARRAY_BUFFER_ARB, Shader->Bindings[21]);
-            glBufferData(GL_ARRAY_BUFFER_ARB, sizeof(v2), 0, GL_DYNAMIC_DRAW_ARB);
+            glBindBuffer(GL_ARRAY_BUFFER, Shader->Bindings[21]);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(v2), 0, GL_DYNAMIC_DRAW);
             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
             glGenBuffers(1, Shader->Bindings + 22);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, Shader->Bindings[22]);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(u16), 0, GL_DYNAMIC_DRAW_ARB);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Shader->Bindings[22]);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16), 0, GL_DYNAMIC_DRAW);
             return Shader;
         }
     }
@@ -1044,9 +991,9 @@ aglRenderText3D(agl_font_stbttf *Font, char *Text, r32 Scale = 1.0f,
 
     glUseProgram(FontRenderingShader->Program);
     
-    mat4x4 World = ScaleMatrix((1.0f / Font->Width) * Scale, (1.0f / Font->Height) * Scale, Z);
-    World = MultMat4x4(World, TranslationMatrix(X, Y, Z));
-    mat4x4 ViewProj = MultMat4x4(CurrentViewMatrix, CurrentProjectionMatrix);
+    mat4x4 World = SclMat((1.0f / Font->Width) * Scale, (1.0f / Font->Height) * Scale, Z);
+    World = MulMat4(World, TrlMat(X, Y, Z));
+    mat4x4 ViewProj = MulMat4(CurrentViewMatrix, CurrentProjectionMatrix);
 
     glBindTexture(GL_TEXTURE_2D, Font->Texture);
     glUniformMatrix4fv(FontRenderingShader->Bindings[0], 1, GL_FALSE, (const float *) ViewProj.E);
@@ -1055,19 +1002,19 @@ aglRenderText3D(agl_font_stbttf *Font, char *Text, r32 Scale = 1.0f,
     glUniform4f(FontRenderingShader->Bindings[3], Color.r, Color.g, Color.b, Alpha);
     glUniform1i(FontRenderingShader->Bindings[4], 0);
     
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[20]);
-    glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v3), 0, GL_DYNAMIC_DRAW_ARB);
-    glBufferSubData(GL_ARRAY_BUFFER_ARB, 0, VertexCount * sizeof(v3), vdata);
+    glBindBuffer(GL_ARRAY_BUFFER, FontRenderingShader->Bindings[20]);
+    glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(v3), 0, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, VertexCount * sizeof(v3), vdata);
     glEnableVertexAttribArray(0);
 
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[21]);
-    glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v2), 0, GL_DYNAMIC_DRAW_ARB);
-    glBufferSubData(GL_ARRAY_BUFFER_ARB, 0, VertexCount * sizeof(v2), texdata);
+    glBindBuffer(GL_ARRAY_BUFFER, FontRenderingShader->Bindings[21]);
+    glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(v2), 0, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, VertexCount * sizeof(v2), texdata);
     glEnableVertexAttribArray(1);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[22]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER_ARB, IndexCount * sizeof(u16), 0, GL_DYNAMIC_DRAW_ARB);
-    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER_ARB, 0, IndexCount * sizeof(u16), idata);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, FontRenderingShader->Bindings[22]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexCount * sizeof(u16), 0, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, IndexCount * sizeof(u16), idata);
     
     glDrawElements(GL_TRIANGLES, IndexCount, GL_UNSIGNED_SHORT, 0);
 
@@ -1082,7 +1029,7 @@ aglRenderText3D(agl_font_stbttf *Font, char *Text, r32 Scale = 1.0f,
 void
 aglRenderText2D(agl_font_stbttf *Font, char *Text,
                 r32 X = 0.f, r32 Y = 0.f,
-                v3 Color = V3(1.0f, 1.0f, 1.0f), r32 Alpha = 0.f)
+                v3 Color = V3(1.0f), r32 Alpha = 0.f)
 {
     if(!FontRenderingShader) FontRenderingShader = aglInitFontShader();
 
@@ -1097,11 +1044,14 @@ aglRenderText2D(agl_font_stbttf *Font, char *Text,
     r32 OffsetX = 0, OffsetY = 0;
     s32 LastIndex = 0;
 
+    s32 FirstChar = AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER;
+    s32 LastChar = FirstChar + AGL_TRUETYPE_DEFAULT_CHARACTERS;
+
     v3 *v = vdata; v2 *t = texdata; u16 *i = idata;
     for(char *c = Text; *c; c++)
     {
         stbtt_aligned_quad Quad;
-        if(*c >= AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER && *c <= (AGL_TRUETYPE_DEFAULT_CHARACTERS + AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER))
+        if(*c >= FirstChar && *c <= LastChar)
         {
             stbtt_GetPackedQuad(Font->CharacterInfo, Font->Width, Font->Height,
                                 *c - AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER,
@@ -1122,30 +1072,28 @@ aglRenderText2D(agl_font_stbttf *Font, char *Text,
 
     glUseProgram(FontRenderingShader->Program);
 
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, Font->Texture);
     glUniform1i(FontRenderingShader->Bindings[2], 0);
     glUniform1i(FontRenderingShader->Bindings[4], 1);
     
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[20]);
-    glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v3), 0, GL_DYNAMIC_DRAW_ARB);
-    glBufferSubData(GL_ARRAY_BUFFER_ARB, 0, VertexCount * sizeof(v3), vdata);
+    glBindBuffer(GL_ARRAY_BUFFER, FontRenderingShader->Bindings[20]);
+    glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(v3), 0, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, VertexCount * sizeof(v3), vdata);
     glEnableVertexAttribArray(0);
 
-    glBindBuffer(GL_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[21]);
-    glBufferData(GL_ARRAY_BUFFER_ARB, VertexCount * sizeof(v2), 0, GL_DYNAMIC_DRAW_ARB);
-    glBufferSubData(GL_ARRAY_BUFFER_ARB, 0, VertexCount * sizeof(v2), texdata);
+    glBindBuffer(GL_ARRAY_BUFFER, FontRenderingShader->Bindings[21]);
+    glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(v2), 0, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, VertexCount * sizeof(v2), texdata);
     glEnableVertexAttribArray(1);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER_ARB, FontRenderingShader->Bindings[22]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER_ARB, IndexCount * sizeof(u16), 0, GL_DYNAMIC_DRAW_ARB);
-    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER_ARB, 0, IndexCount * sizeof(u16), idata);
-/*
-    glUniform4f(FontRenderingShader->Uniforms[5], __agl_Context.Width, __agl_Context.Height, X+1, Y-1);
-    glUniform4f(FontRenderingShader->Uniforms[3], (u8) (255 - (u8)Color.r), (u8) (255 - (u8)Color.g), (u8) (255 - (u8)Color.b), Alpha);
-    glDrawElements(GL_TRIANGLES, IndexCount, GL_UNSIGNED_SHORT, 0);
-*/  
-    glUniform4f(FontRenderingShader->Bindings[5], __agl_Context.Width, __agl_Context.Height, X, Y);
-    glUniform4f(FontRenderingShader->Bindings[3], Color.r, Color.g, Color.b, Alpha);    
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, FontRenderingShader->Bindings[22]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexCount * sizeof(u16), 0, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, IndexCount * sizeof(u16), idata);
+
+    glUniform4f(FontRenderingShader->Bindings[5],__ctx.Width, __ctx.Height, X, Y);
+    glUniform4f(FontRenderingShader->Bindings[3], Color.r, Color.g, Color.b, Alpha);
+    
     glDrawElements(GL_TRIANGLES, IndexCount, GL_UNSIGNED_SHORT, 0);
     
     glDisableVertexAttribArray(1);

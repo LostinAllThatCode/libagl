@@ -1,7 +1,7 @@
 #if !defined(AGL_SHADERS_H)
 
 GLint
-aglCompileShader(const char *Source, GLenum Type)
+aglShaderCompile(const char *Source, GLenum Type)
 {
     GLint Result = glCreateShader(Type);
     if(Result > 0)
@@ -10,7 +10,7 @@ aglCompileShader(const char *Source, GLenum Type)
         glCompileShader(Result);
 
         GLint Status;
-        glGetShaderiv(Result, GL_COMPILE_STATUS, &Status);
+        glGetShaderStatus(Result, &Status);
         if(!Status)
         {
             int Length = 0;
@@ -24,7 +24,7 @@ aglCompileShader(const char *Source, GLenum Type)
 }
 
 void
-aglAttachShaders(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
+aglShaderAttach(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
 {
     for(int i=0; i < Length;i++)
     {
@@ -33,7 +33,7 @@ aglAttachShaders(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
 }
 
 void
-aglDetachShaders(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
+aglShaderDetach(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
 {
     for(int i=0; i < Length;i++)
     {
@@ -43,15 +43,15 @@ aglDetachShaders(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
 }
 
 b32
-aglLinkProgram(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
+aglShaderLink(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
 {
     GLboolean Result = GL_FALSE;
     if(ShaderArray && Length > 0)
     {
-        aglAttachShaders(ProgramID, ShaderArray, Length);
+        aglShaderAttach(ProgramID, ShaderArray, Length);
         glLinkProgram(ProgramID);
         GLint Status;
-        glGetProgramiv(ProgramID, GL_LINK_STATUS, &Status);
+        glGetProgramStatus(ProgramID, &Status);
         if(Status != GL_TRUE)
         {
             int Length = 0;
@@ -62,20 +62,14 @@ aglLinkProgram(GLuint ProgramID, GLint *ShaderArray, GLuint Length)
             Result = GL_TRUE;
         }
     }
-    aglDetachShaders(ProgramID, ShaderArray, Length);
+    aglShaderDetach(ProgramID, ShaderArray, Length);
     return Result;
 }
-
-#define aglCreateShader(Var, ...)                                       \
-    GLuint Var = glCreateProgram();                                     \
-    GLint Shaders[] = { __VA_ARGS__ };                                  \
-    GLuint Result = aglLinkProgram(Var, Shaders, sizeof(Shaders) / sizeof(Shaders[0])); \
-    if(!Result) return -1
 
 // FRAGMENT SHADERS
 const char *
 AGL_SHADERS_FRAG_1 = GLSL
-    (
+    ( 430,
         out vec4 out_color;
     
         void main (void)
@@ -86,7 +80,7 @@ AGL_SHADERS_FRAG_1 = GLSL
 
 const char *
 AGL_SHADERS_FRAG_2 = GLSL
-    (
+    ( 430,
         in vec4 color;
         
         void main() {
@@ -96,7 +90,7 @@ AGL_SHADERS_FRAG_2 = GLSL
 
 const char *
 AGL_SHADERS_FRAG_3 = GLSL
-    (
+    ( 430,
         struct agl_material
         {
             vec3  ambient;
@@ -190,7 +184,7 @@ AGL_SHADERS_FRAG_3 = GLSL
 // VERTEX SHADERS
 const char *
 AGL_SHADERS_VERT_1 = GLSL
-    (
+    ( 430,
         layout(location = 0) in vec4 in_position;
 
         void main()
@@ -201,7 +195,7 @@ AGL_SHADERS_VERT_1 = GLSL
 
 const char *
 AGL_SHADERS_VERT_2 = GLSL
-    (
+    ( 430,
         layout(location = 0) in vec4 in_position;
 
         varying vec4 color;
@@ -217,7 +211,7 @@ AGL_SHADERS_VERT_2 = GLSL
 
 const char *
 AGL_SHADERS_VERT_3 = GLSL
-    (
+    ( 430,
         layout(location = 0) in vec3 vertexPosition;
         layout(location = 1) in vec2 vertexUV;
 
@@ -234,7 +228,7 @@ AGL_SHADERS_VERT_3 = GLSL
 
 const char *
 AGL_SHADERS_VERT_4 = GLSL
-    (
+    ( 430,
         layout(location = 0) in vec3 vertexPosition;
         layout(location = 1) in vec2 vertexUV;
         layout(location = 2) in vec3 vertexNormal;
@@ -261,7 +255,7 @@ AGL_SHADERS_VERT_4 = GLSL
 
 const char *
 AGL_SHADERS_VERT_GENERAL = GLSL
-    (
+    ( 430,
         layout(location = 0) in vec3 Position;
         layout(location = 1) in vec2 TextureCoord;
         layout(location = 2) in vec3 Normal;
@@ -289,7 +283,7 @@ AGL_SHADERS_VERT_GENERAL = GLSL
 
 const char *
 AGL_16x16BATCHDRAW_VS = GLSL
-    (
+    ( 430,
         layout(location = 0) in vec3 vertexPosition;
         layout(location = 1) in vec2 vertexUV;
         layout(location = 2) in vec3 vertexNormal;
