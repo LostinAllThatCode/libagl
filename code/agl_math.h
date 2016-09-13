@@ -1,10 +1,12 @@
 #if !defined(AGL_MATH_H)
 
+#ifndef AGL_MATH_EXCLUDE_STD
 #define _USE_MATH_DEFINES
 #include <math.h>
+#endif
 
 inline r32
-Lerp(r32 A, r32 B, r32 t)
+aglmLerp(r32 A, r32 B, r32 t)
 {
     r32 Result;
     Result = A + t*(B-A);
@@ -21,6 +23,10 @@ union v2
     struct
     {
         r32 u, v;
+    };
+    struct
+    {
+        r32 w, h;
     };
     r32 E[2];
 };
@@ -382,7 +388,7 @@ operator-=(v4 &A, v4 B)
 
 // NOTE: Dot product / inner product of two vectors
 inline r32
-DotV3(v3 A, v3 B)
+aglmDotV3(v3 A, v3 B)
 {
     r32 Result = A.x*B.x + A.y*B.y + A.z*B.z;
 
@@ -390,7 +396,7 @@ DotV3(v3 A, v3 B)
 }
 
 inline r32
-DotV4(v4 A, v4 B)
+aglmDotV4(v4 A, v4 B)
 {
     r32 Result = A.x*B.x + A.y*B.y + A.z*B.z + A.w*B.w;
 
@@ -398,7 +404,7 @@ DotV4(v4 A, v4 B)
 }
 
 inline v3
-CrossV3(v3 A, v3 B)
+aglmCrossV3(v3 A, v3 B)
 {
     v3 Result;
     Result.x = (A.y*B.z) - (A.z*B.y);
@@ -408,7 +414,7 @@ CrossV3(v3 A, v3 B)
 }
 
 inline v4
-CrossV4(v4 A, v4 B)
+aglmCrossV4(v4 A, v4 B)
 {
     v4 Result;
     Result.x = (A.y*B.z) - (A.z*B.y);
@@ -419,49 +425,49 @@ CrossV4(v4 A, v4 B)
 }
 
 inline r32
-LengthSqV3(v3 A)
+aglmLengthSqV3(v3 A)
 {
-    r32 Result = DotV3(A, A);
+    r32 Result = aglmDotV3(A, A);
     return(Result);
 }
 
 inline r32
-LengthSqV4(v4 A)
+aglmLengthSqV4(v4 A)
 {
-    r32 Result = DotV4(A, A);
+    r32 Result = aglmDotV4(A, A);
     return(Result);
 }
 
 inline r32
-LengthV3(v3 A)
+aglmLengthV3(v3 A)
 {
-    r32 Result = sqrt(LengthSqV3(A));
+    r32 Result = sqrt(aglmLengthSqV3(A));
     return(Result);
 }
 
 inline r32
-LengthV4(v4 A)
+aglmLengthV4(v4 A)
 {
-    r32 Result = sqrt(LengthSqV4(A));
+    r32 Result = sqrt(aglmLengthSqV4(A));
     return(Result);
 }
 
 inline v3
-NormalizeV3(v3 A)
+aglmNormalizeV3(v3 A)
 {
-    v3 Result = A * (1.0f / LengthV3(A));
+    v3 Result = A * (1.0f / aglmLengthV3(A));
     return(Result);
 }
 
 inline v4
-NormalizeV4(v4 A)
+aglmNormalizeV4(v4 A)
 {
-    v4 Result = A * (1.0f / LengthV4(A));
+    v4 Result = A * (1.0f / aglmLengthV4(A));
     return(Result);
 }
 
 inline v3
-LerpV3(v3 A, v3 B, r32 t)
+aglmLerpV3(v3 A, v3 B, r32 t)
 {
     v3 Result;
     Result = A + t*(B-A);
@@ -540,7 +546,7 @@ Mat4(s32 e)
 }
 
 inline mat4x4
-TrlMat(r32 x, r32 y, r32 z)
+aglmTrlMat(r32 x, r32 y, r32 z)
 {
     mat4x4 Result = {
         1.0f, 0.0f, 0.0f, 0.0f,
@@ -552,7 +558,7 @@ TrlMat(r32 x, r32 y, r32 z)
 }
 
 inline mat4x4
-SclMat(r32 x, r32 y, r32 z)
+aglmSclMat(r32 x, r32 y, r32 z)
 {
     mat4x4 Result = {
         x,    0.0f, 0.0f, 0.0f,
@@ -564,7 +570,7 @@ SclMat(r32 x, r32 y, r32 z)
 }
 
 inline mat4x4
-RotMat(r32 Angle, r32 x, r32 y, r32 z)
+aglmRotMat(r32 Angle, r32 x, r32 y, r32 z)
 {
     r32 s = sinf(Angle);
     mat4x4 Result = {
@@ -574,7 +580,7 @@ RotMat(r32 Angle, r32 x, r32 y, r32 z)
 }
 
 inline mat3x3
-MulMat3(mat3x3 A, mat3x3 B)
+aglmMulMat3(mat3x3 A, mat3x3 B)
 {
     mat3x3 Result;
     Result.m0 = (A.m0 * B.m0) + (A.m3 * B.m1) + (A.m6 * B.m2);
@@ -590,7 +596,7 @@ MulMat3(mat3x3 A, mat3x3 B)
 }
 
 inline mat3x3
-MulMat3(mat3x3 A, r32 V)
+aglmMulMat3(mat3x3 A, r32 V)
 {
     mat3x3 Result;
     Result.m0 *= V; Result.m3 *= V; Result.m6 *= V;
@@ -600,7 +606,7 @@ MulMat3(mat3x3 A, r32 V)
 }
 
 inline mat4x4
-MulMat4(mat4x4 A, mat4x4 B)
+aglmMulMat4(mat4x4 A, mat4x4 B)
 {
     mat4x4 Result;
     Result.m0  = (A.m0 * B.m0)  + (A.m4 * B.m1)  + (A.m8  * B.m2)  + (A.m12 * B.m3);
@@ -623,7 +629,7 @@ MulMat4(mat4x4 A, mat4x4 B)
 }
 
 inline mat4x4
-MulMat4(mat4x4 A, r32 V)
+aglmMulMat4(mat4x4 A, r32 V)
 {
     mat4x4 Result;
     Result.m0 *= V; Result.m4 *= V; Result.m8 *= V;  Result.m12 *= V; 
@@ -634,7 +640,7 @@ MulMat4(mat4x4 A, r32 V)
 }
 
 inline mat4x4
-TransposeMat4(mat4x4 M)
+aglmTransposeMat4(mat4x4 M)
 {
     mat4x4 Temp;
     Temp.m0 = M.m0;   Temp.m4 = M.m1;   Temp.m8 = M.m2;   Temp.m12 = M.m3;
@@ -643,6 +649,7 @@ TransposeMat4(mat4x4 M)
     Temp.m3 = M.m12;  Temp.m7 = M.m13;  Temp.m11 = M.m14; Temp.m15 = M.m15;
     return Temp;
 }
+
 /*
 inline r32
 DeterminantMat4x4(mat4x4 A)
@@ -658,7 +665,7 @@ DeterminantMat4x4(mat4x4 A)
 
 
 inline r32
-DetMat4(mat4x4 A)
+aglmDeterminantMat4(mat4x4 A)
 {
     r32 det = 0;
     r32 *m = A.E;
@@ -687,7 +694,7 @@ DetMat4(mat4x4 A)
 
 
 inline mat4x4
-InvMat4(mat4x4 A)
+aglmInverseMat4(mat4x4 A)
 {
     mat4x4 Result = A;
     r32 *m = A.E;    
@@ -724,7 +731,7 @@ InvMat4(mat4x4 A)
 }
 
 inline mat4x4
-FrustumMat(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
+aglmFrustum(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
 {
     mat4x4 Result = Mat4(0);
 #if 0
@@ -748,37 +755,37 @@ FrustumMat(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
 }
 
 inline mat4x4
-PerspectiveMat(r32 FoV, r32 Aspect, r32 Near, r32 Far)
+aglmPerspective(r32 FoV, r32 Aspect, r32 Near, r32 Far)
 {
     r32 Top   = Near * tanf(FoV * M_PI / 360);
     r32 Right = Top * Aspect;
-    return FrustumMat(-Right, Right, -Top, Top, Near, Far);
+    return aglmFrustum(-Right, Right, -Top, Top, Near, Far);
 }
 
 inline mat4x4
-LookAtMat(v3 Eye, v3 Target, v3 Up)
+aglmLookAt(v3 Eye, v3 Target, v3 Up)
 {
     mat4x4 Result = Mat4(0);
-    v3 z = NormalizeV3(Eye - Target);
-    v3 x = NormalizeV3(CrossV3(Up, z));
-    v3 y = NormalizeV3(CrossV3(z, x));
+    v3 z = aglmNormalizeV3(Eye - Target);
+    v3 x = aglmNormalizeV3(aglmCrossV3(Up, z));
+    v3 y = aglmNormalizeV3(aglmCrossV3(z, x));
     Result.m0 = x.x;
     Result.m1 = x.y;
     Result.m2 = x.z;
-    Result.m3 = DotV3(x, -Eye);
+    Result.m3 = aglmDotV3(x, -Eye);
     Result.m4 = y.x;
     Result.m5 = y.y;
     Result.m6 = y.z;
-    Result.m7 = DotV3(y, -Eye);
+    Result.m7 = aglmDotV3(y, -Eye);
     Result.m8 = z.x;
     Result.m9 = z.y;
     Result.m10 = z.z;
-    Result.m11 = DotV3(z, -Eye);
+    Result.m11 = aglmDotV3(z, -Eye);
     Result.m15 = 1.0f;
     return Result;
 }
 inline mat4x4
-OrhtoMat(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
+aglmOrhto(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
 {
     mat4x4 Result = Mat4(0);
     Result.m0 = 2 / (Right - Left);

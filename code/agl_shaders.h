@@ -124,18 +124,12 @@ AGL_SHADERS_FRAG_3 = GLSL
 
         float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
         {
-            // perform perspective divide
             vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-            // Transform to [0,1] range
             projCoords = projCoords * 0.5 + 0.5;
-            // Get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
             float closestDepth = texture(shadowMap, projCoords.xy).r; 
-            // Get depth of current fragment from light's perspective
             if(projCoords.z > 1.0) return 0.0;
             
             float currentDepth = projCoords.z;
-
-            //float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.0001);
             float bias = 0.000125;
             float shadow = 0.0;
             vec2 texelSize = .33 / textureSize(shadowMap, 0);
@@ -155,7 +149,7 @@ AGL_SHADERS_FRAG_3 = GLSL
         void main(){
             vec3  color = material.ambient;
             vec3  normal = normalize(Normal);
-            vec3  lightColor = vec3(1.0);//vec3(0.125, 0.3, 0.7);
+            vec3  lightColor = vec3(1.0);
             
             vec3  ambient = 0.15 * color;
             

@@ -24,28 +24,27 @@
 #endif
     
 #ifndef AGL_INIT
-#define AGL_INIT aglInitStub
+#define AGL_INIT        aglInitStub
 #endif
     
 #ifndef AGL_CLEANUP
-#define AGL_CLEANUP aglCleanUpStub
+#define AGL_CLEANUP     aglCleanUpStub
 #endif
     
 #ifndef AGL_RESIZE
-#define AGL_RESIZE aglResizeStub
+#define AGL_RESIZE      aglResizeStub
 #endif
     
 #ifndef AGL_KEYDOWN
-#define AGL_KEYDOWN aglKeyDownStub
+#define AGL_KEYDOWN     aglKeyDownStub
 #endif
     
 #ifndef AGL_KEYUP
-#define AGL_KEYUP aglKeyUpStub
+#define AGL_KEYUP       aglKeyUpStub
 #endif
     
-#ifdef AGL_CONSOLE
+#ifdef AGL_DEBUG
 #define AGL_MAIN int main(int argc, char *argv[])
-#define AGL_DEBUG
 #endif
 
 #ifndef AGL_LOOP        
@@ -126,16 +125,16 @@
 #error No mainloop is defined.
 #endif
 
+#ifdef AGL_DEBUG
+#include <stdio.h>
+#define AGL_PRINT(s,...) printf("%s (%i): "s, __FILE__, __LINE__, __VA_ARGS__)
 #ifndef AGL_ASSERT
 #include <assert.h>
 #define AGL_ASSERT(Condition) assert(Condition)
 #endif
-
-#ifdef AGL_DEBUG
-#include <stdio.h>
-#define AGL_PRINT(s,...) printf("%s (%i): "s, __FILE__, __LINE__, __VA_ARGS__)
 #else
 #define AGL_PRINT
+#define AGL_ASSERT(Condition)
 #endif
 
 #ifdef _WIN32 // _WIN32
@@ -144,8 +143,8 @@
 #define AGL_MAIN int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 #endif
 
-#ifndef AGL_PLATFORM_WIN32_CLASSNAME
-#define AGL_PLATFORM_WIN32_CLASSNAME L"win32_libagl_window_class"
+#ifndef AGL_WIN32_CLASSNAME
+#define AGL_WIN32_CLASSNAME L"win32_libagl_window_class"
 #endif
 
 #include <windows.h>
@@ -155,6 +154,7 @@
 #define GET_Y_LPARAM(lp) ((int)(short)HIWORD(lp))
 
 typedef int (WINAPI * PFNWGLCHOOSEPIXELFORMATARBPROC) (HDC hdc, const int *piAttribIList, const float *pfAttribFList, unsigned int nMaxFormats, int *piFormats, unsigned int *nNumFormats);
+typedef HGLRC (WINAPI * PFNWGLCREATECONTEXTATTRIBSARBPROC) (HDC hDC, HGLRC hShareContext, const int *attribList);
 typedef int (WINAPI * PFNWGLSWAPINTERVALEXTPROC) (int interval);
 typedef int (WINAPI * PFNWGLGETSWAPINTERVALEXTPROC) (void);
 
@@ -171,8 +171,6 @@ typedef int (WINAPI * PFNWGLGETSWAPINTERVALEXTPROC) (void);
 #define WGL_SAMPLES_ARB                             0x2042
 #define WGL_SWAP_METHOD_ARB                         0x2007
 #define WGL_SWAP_EXCHANGE_ARB                       0x2028
-
-typedef HGLRC (WINAPI * PFNWGLCREATECONTEXTATTRIBSARBPROC) (HDC hDC, HGLRC hShareContext, const int *attribList);
 #define WGL_CONTEXT_DEBUG_BIT_ARB                   0x00000001
 #define WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB      0x00000002
 #define WGL_CONTEXT_MAJOR_VERSION_ARB               0x2091
@@ -182,6 +180,11 @@ typedef HGLRC (WINAPI * PFNWGLCREATECONTEXTATTRIBSARBPROC) (HDC hDC, HGLRC hShar
 #define ERROR_INVALID_VERSION_ARB                   0x2095
 #define WGL_CONTEXT_PROFILE_MASK_ARB                0x9126
 #define WGL_CONTEXT_CORE_PROFILE_BIT_ARB            0x00000001      
+
+static PFNWGLCHOOSEPIXELFORMATARBPROC        wglChoosePixelFormat;
+static PFNWGLSWAPINTERVALEXTPROC             wglSwapInterval;
+static PFNWGLGETSWAPINTERVALEXTPROC          wglGetSwapInterval;
+static PFNWGLCREATECONTEXTATTRIBSARBPROC     wglCreateContextAttribs;
 
 typedef struct 
 {
@@ -289,13 +292,14 @@ typedef void* agl_platform;
     AGL_OPENGL_FUNC_DEF(DELETEOBJECT        , DeleteObject        )     \
     AGL_OPENGL_FUNC_DEF(DETACHOBJECT        , DetachObject        )     \
     AGL_OPENGL_FUNC_DEF(USEPROGRAMOBJECT    , UseProgramObject    )     \
-        AGL_OPENGL_FUNC_DEF(GETATTACHEDOBJECTS  , GetAttachedObjects  ) \
+    AGL_OPENGL_FUNC_DEF(GETATTACHEDOBJECTS  , GetAttachedObjects  )     \
     AGL_OPENGL_FUNC_DEF(GETOBJECTPARAMETERIV, GetObjectParameteriv)     \
     AGL_OPENGL_FUNC_DEF(GETINFOLOG          , GetInfoLog          )      
 #else
 #define AGL_OPENGL_EXTENSIONS_DYNAMIC                                   \
     AGL_OPENGL_FUNC_DEF(ATTACHSHADER        , AttachShader        )     \
     AGL_OPENGL_FUNC_DEF(CREATEPROGRAM       , CreateProgram       )     \
+    AGL_OPENGL_FUNC_DEF(DELETEPROGRAM       , DeleteProgram       )     \
     AGL_OPENGL_FUNC_DEF(CREATESHADER        , CreateShader        )     \
     AGL_OPENGL_FUNC_DEF(DELETESHADER        , DeleteShader        )     \
     AGL_OPENGL_FUNC_DEF(DETACHSHADER        , DetachShader        )     \
@@ -318,17 +322,21 @@ AGL_OPENGL_EXTENSIONS_CORE
 AGL_OPENGL_EXTENSIONS_DEF_OR_ARB
 AGL_OPENGL_EXTENSIONS_DYNAMIC
 #undef AGL_OPENGL_FUNC_DEF
+static int __active_program;
 
 #ifdef _WIN32
 #define AGL_GET_PROC(x) wglGetProcAddress(x)
 #endif
+
+
 
 void
 aglInitProcs()
 {
     static int IsInitialized = 0;
     if(IsInitialized) return;
-
+    IsInitialized = 1;
+    
     #define AGL_OPENGL_FUNC_DEF(x,y) __gl##y = (PFNGL##x##PROC) AGL_GET_PROC("gl" #y);
     AGL_OPENGL_EXTENSIONS_CORE
         
@@ -340,6 +348,7 @@ aglInitProcs()
     AGL_OPENGL_EXTENSIONS_DEF_OR_ARB
     AGL_OPENGL_EXTENSIONS_DYNAMIC
     #undef AGL_OPENGL_FUNC_DEF
+
 }
 #undef AGL_OPENGL_EXTENSIONS_DYNAMIC
 
@@ -565,7 +574,7 @@ AGL_MAIN
     __ctx.VerticalSync = AGL_OPENGL_VSYNC_ENABLE;
     
     if(aglCreateWindow(AGL_WINDOW_TITLE) && __ctx.Platform.GLContext)
-    {
+    {   
         if(__ctx.VerticalSync) aglToggleVSYNC();
         if(__ctx.EnableMSAA)   glEnable(GL_MULTISAMPLE); else glDisable(GL_MULTISAMPLE);
         
@@ -667,6 +676,17 @@ aglGetMouseY()
     return __ctx.Input.MouseY;
 }
 
+AGLDEF s32
+aglGetMouseDeltaX()
+{
+    return __ctx.Input.MouseXDelta;
+}
+
+AGLDEF s32
+aglGetMouseDeltaY()
+{
+    return __ctx.Input.MouseYDelta;
+}
 
 AGLDEF b32
 aglMouseDown(u8 MouseButton)
@@ -883,7 +903,7 @@ aglGetTicks()
 }
 
 AGLDEF void
-aglPlatformSetCursor(b32 Show)
+aglShowCursor(b32 Show)
 {
     CURSORINFO CursorInfo;
     CursorInfo.cbSize = sizeof(CURSORINFO);
@@ -900,7 +920,7 @@ aglDestroyWindow()
     {
         DestroyWindow(__ctx.Platform.HWnd);
 
-        const wchar_t Clazzname[] = AGL_PLATFORM_WIN32_CLASSNAME;
+        const wchar_t Clazzname[] = AGL_WIN32_CLASSNAME;
         if(!UnregisterClass( Clazzname , GetModuleHandle(0)))
         {
             MessageBoxA(NULL,"Unregister failed..","SHUTDOWN ERROR",MB_OK | MB_ICONINFORMATION);  
@@ -924,7 +944,7 @@ aglDestroyWindow()
 
 // WGLisExtensionSupported: This Is A Form Of The Extension For WGL
 AGLDEF b32
-aglPlatformIsExtensionSupported(const char *extension)
+aglIsExtensionSupported(const char *extension)
 {
 	const size_t extlen = strlen(extension);
 	const char *supported = NULL;
@@ -952,12 +972,6 @@ aglPlatformIsExtensionSupported(const char *extension)
 		if (p == NULL)
 			return false;															// No Match
 
-		// Make Sure That Match Is At The Start Of The String Or That
-		// The Previous Char Is A Space, Or Else We Could Accidentally
-		// Match "wglFunkywglExtension" With "wglExtension"
-
-		// Also, Make Sure That The Following Character Is Space Or NULL
-		// Or Else "wglExtensionTwo" Might Match "wglExtension"
 		if ((p==supported || p[-1]==' ') && (p[extlen]=='\0' || p[extlen]==' '))
 			return true;															// Match
 	}
@@ -965,23 +979,22 @@ aglPlatformIsExtensionSupported(const char *extension)
 
 // InitMultisample: Used To Query The Multisample Frequencies
 AGLDEF b32
-aglPlatformInitMultisample(HINSTANCE hInstance,HWND hWnd,PIXELFORMATDESCRIPTOR pfd)
+aglInitMultisample(HINSTANCE hInstance,HWND hWnd,PIXELFORMATDESCRIPTOR pfd)
 {  
     // See If The String Exists In WGL!
-	if (!aglPlatformIsExtensionSupported("WGL_ARB_multisample"))
+	if (!aglIsExtensionSupported("WGL_ARB_multisample"))
 	{
 		__ctx.MultisampleSupported = false;
 		return false;
 	}
 
-    AGL_HELPER_GPAT(wglChoosePixelFormatARB, PFNWGLCHOOSEPIXELFORMATARBPROC);
-	if (!wglChoosePixelFormatARB) 
+    wglChoosePixelFormat = (PFNWGLCHOOSEPIXELFORMATARBPROC) AGL_GET_PROC("wglChoosePixelFormatARB");
+    if (!wglChoosePixelFormat) 
 	{
 		__ctx.MultisampleSupported = false;
 		return false;
 	}
 
-	// Get Our Current Device Context
 	HDC hDC = GetDC(hWnd);
 
 	int		pixelFormat;
@@ -989,11 +1002,6 @@ aglPlatformInitMultisample(HINSTANCE hInstance,HWND hWnd,PIXELFORMATDESCRIPTOR p
 	UINT	numFormats;
 	float	fAttributes[] = {0,0};
 
-	// These Attributes Are The Bits We Want To Test For In Our Sample
-	// Everything Is Pretty Standard, The Only One We Want To 
-	// Really Focus On Is The SAMPLE BUFFERS ARB And WGL SAMPLES
-	// These Two Are Going To Do The Main Testing For Whether Or Not
-	// We Support Multisampling On This Hardware.
 	int iAttributes[] =
         {
             WGL_DRAW_TO_WINDOW_ARB,GL_TRUE,
@@ -1006,34 +1014,19 @@ aglPlatformInitMultisample(HINSTANCE hInstance,HWND hWnd,PIXELFORMATDESCRIPTOR p
             WGL_DOUBLE_BUFFER_ARB,GL_TRUE,
             WGL_SWAP_METHOD_ARB, WGL_SWAP_EXCHANGE_ARB,
             WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
-#if defined(AGL_OPENGL_MSAA_ENABLE)
             WGL_SAMPLES_ARB, AGL_OPENGL_MSAA_SAMPLES,
-#endif
             0,0
         };
 
-	// First We Check To See If We Can Get A Pixel Format For 4 Samples
-	valid = wglChoosePixelFormatARB(hDC,iAttributes,fAttributes,1,&pixelFormat,&numFormats);
+	valid = wglChoosePixelFormat(hDC,iAttributes,fAttributes,1,&pixelFormat,&numFormats);
  
-	// If We Returned True, And Our Format Count Is Greater Than 1
 	if (valid && numFormats >= 1)
 	{
 		__ctx.MultisampleSupported = true;
 		__ctx.MultisampleFormat = pixelFormat;	
 		return __ctx.MultisampleSupported;
 	}
-
-	// Our Pixel Format With 4 Samples Failed, Test For 2 Samples
-	iAttributes[19] = 2;
-	valid = wglChoosePixelFormatARB(hDC,iAttributes,fAttributes,1,&pixelFormat,&numFormats);
-	if (valid && numFormats >= 1)
-	{
-		__ctx.MultisampleSupported = true;
-		__ctx.MultisampleFormat = pixelFormat;	 
-		return __ctx.MultisampleSupported;
-	}
-	  
-	// Return The Valid Format
+    
 	return __ctx.MultisampleSupported;
 }
 
@@ -1046,7 +1039,8 @@ aglCreateWindow(const char *Title)
 	DWORD		dwExStyle;				// Window Extended Style
 	DWORD		dwStyle;				// Window Style
 	RECT		WindowRect;				// Grabs Rectangle Upper Left / Lower Right Value
-    const wchar_t Clazzname[] = AGL_PLATFORM_WIN32_CLASSNAME;
+    
+    const wchar_t Clazzname[] = AGL_WIN32_CLASSNAME;
     size_t Ret=0;
     wchar_t WTitle[128] = {};
     mbstowcs_s(&Ret, WTitle, 128, Title, strlen(Title));
@@ -1056,7 +1050,6 @@ aglCreateWindow(const char *Title)
 	WindowRect.top      = (long) 0;
 	WindowRect.bottom   = (long) __ctx.Height;
 
-//Step 1: Registering the Window Class
     wc.style         = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;;
     wc.lpfnWndProc   = WndProc;
     wc.cbClsExtra    = 0;
@@ -1068,63 +1061,59 @@ aglCreateWindow(const char *Title)
     wc.lpszMenuName  = NULL;
     wc.lpszClassName = Clazzname;
     
-	if (!RegisterClass(&wc))									// Attempt To Register The Window Class
+	if (!RegisterClass(&wc))
 	{
-		MessageBoxA(NULL,"Failed To Register The Window Class.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+        AGL_ASSERT(!"Failed To Register The Window Class.");
         return false;
-	}
+    }
 
-    dwExStyle=WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;			// Window Extended Style
     dwStyle=WS_OVERLAPPEDWINDOW;
+    dwExStyle=WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
     
 	AdjustWindowRectEx(&WindowRect, dwStyle, FALSE, dwExStyle);		// Adjust Window To True Requested Size
 
 	if (!(__ctx.Platform.HWnd = CreateWindowEx( 0,
-                                                        Clazzname,		// Class Name
-                                                        WTitle,					// Window Title
-                                                        dwStyle |							// Defined Window Style
-                                                        WS_CLIPSIBLINGS |					// Required Window Style
-                                                        WS_CLIPCHILDREN,					// Required Window Style
-                                                        0, 0,								// Window Position
-                                                        WindowRect.right-WindowRect.left,	// Calculate Window Width
-                                                        WindowRect.bottom-WindowRect.top,	// Calculate Window Height
-                                                        NULL,								// No Parent Window
-                                                        NULL,								// No Menu
-                                                        wc.hInstance,							// Instance
-                                                        0)))								// Dont Pass Anything To WM_CREATE
+                                                Clazzname,
+                                                WTitle,
+                                                dwStyle | WS_CLIPSIBLINGS |	WS_CLIPCHILDREN,
+                                                0, 0,
+                                                WindowRect.right-WindowRect.left,
+                                                WindowRect.bottom-WindowRect.top,
+                                                NULL,
+                                                NULL,
+                                                wc.hInstance,
+                                                0)))
 	{
         aglDestroyWindow();	
-		MessageBoxA(NULL,"Window Creation Error.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+        AGL_ASSERT(!"Can't create window.");
 		return false;
 	}
 
-	PIXELFORMATDESCRIPTOR pfd =				// pfd Tells Windows How We Want Things To Be
+	PIXELFORMATDESCRIPTOR pfd =
         {
-            sizeof(PIXELFORMATDESCRIPTOR),				// Size Of This Pixel Format Descriptor
-            1,											// Version Number
-            PFD_DRAW_TO_WINDOW |						// Format Must Support Window
-            PFD_SUPPORT_OPENGL |						// Format Must Support OpenGL
-            PFD_DOUBLEBUFFER,							// Must Support Double Buffering
-            PFD_TYPE_RGBA,								// Request An RGBA Format
-            32,										// Select Our Color Depth
-            0, 0, 0, 0, 0, 0,							// Color Bits Ignored
-            0,											// No Alpha Buffer
-            0,											// Shift Bit Ignored
-            0,											// No Accumulation Buffer
-            0, 0, 0, 0,									// Accumulation Bits Ignored
-            24,											// 16Bit Z-Buffer (Depth Buffer)  
-            8,											// No Stencil Buffer
-            0,											// No Auxiliary Buffer
-            PFD_MAIN_PLANE,								// Main Drawing Layer
-            0,											// Reserved
-            0, 0, 0										// Layer Masks Ignored
+            sizeof(PIXELFORMATDESCRIPTOR),
+            1,
+            PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
+            PFD_TYPE_RGBA,
+            32,
+            0, 0, 0, 0, 0, 0,
+            0,
+            0,
+            0,
+            0,
+            24,
+            8,
+            0,
+            PFD_MAIN_PLANE,
+            0,
+            0, 0, 0
         };
     PIXELFORMATDESCRIPTOR *ppfd = &pfd;
     
 	if (!(__ctx.Platform.DC = GetDC(__ctx.Platform.HWnd)))
 	{
         aglDestroyWindow();	
-		MessageBoxA(NULL,"Can't Create A GL Device __ctx.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		AGL_ASSERT(!"Can't create a device context.");
 		return false;
 	}
 
@@ -1133,7 +1122,7 @@ aglCreateWindow(const char *Title)
         if (!(PixelFormat=ChoosePixelFormat(__ctx.Platform.DC, ppfd)))
         {
             aglDestroyWindow();	
-            MessageBoxA(NULL,"Can't Find A Suitable PixelFormat.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+            AGL_ASSERT(!"Can't find a fitting pixelformat.");
             return false;
         }
     }
@@ -1145,7 +1134,7 @@ aglCreateWindow(const char *Title)
 	if(!SetPixelFormat(__ctx.Platform.DC, PixelFormat, ppfd))
 	{
         aglDestroyWindow();	
-		MessageBoxA(NULL,"Can't Set The PixelFormat.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+        AGL_ASSERT(!"Can't set the desired pixelformat.");
         return false;
 	}
 
@@ -1155,17 +1144,18 @@ aglCreateWindow(const char *Title)
         if (!(__ctx.Platform.GLContext = wglCreateContext(__ctx.Platform.DC)))
         {
             aglDestroyWindow();	
-            MessageBoxA(NULL,"Can't Create A GL Rendering __ctx.","ERROR",MB_OK|MB_ICONEXCLAMATION);        
+            AGL_ASSERT(!"Can't create an opengl rendering context.");
+            return false;
         }  
         
         if(!wglMakeCurrent(__ctx.Platform.DC, __ctx.Platform.GLContext))
         {
             aglDestroyWindow();	
-            MessageBoxA(NULL,"Can't Activate The GL Rendering __ctx.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+            AGL_ASSERT(!"Can't activate the opengl rendering context");
+            return false;
         }
         
-        // Try to get a modern gl context
-        if(aglPlatformIsExtensionSupported("WGL_ARB_create_context"))
+        if(aglIsExtensionSupported("WGL_ARB_create_context"))
         {
             int attribs[] =
                 {
@@ -1176,8 +1166,8 @@ aglCreateWindow(const char *Title)
                     0
                 };
             
-            AGL_HELPER_GPAT(wglCreateContextAttribsARB, PFNWGLCREATECONTEXTATTRIBSARBPROC);
-            HGLRC ModernContext = wglCreateContextAttribsARB(__ctx.Platform.DC, 0, attribs);
+            if(!wglCreateContextAttribs) wglCreateContextAttribs = (PFNWGLCREATECONTEXTATTRIBSARBPROC) AGL_GET_PROC("wglCreateContextAttribsARB");
+            HGLRC ModernContext = wglCreateContextAttribs(__ctx.Platform.DC, 0, attribs);
             if(ModernContext)
             {
                 wglMakeCurrent(0, 0);
@@ -1185,31 +1175,38 @@ aglCreateWindow(const char *Title)
                 wglMakeCurrent(__ctx.Platform.DC, ModernContext);
                 __ctx.Platform.GLContext = ModernContext;                
             }
+
         }
-        
     }
     
     if(__ctx.EnableMSAA && !__ctx.MultisampleSupported)
     {
-        if(aglPlatformInitMultisample(GetModuleHandle(0), __ctx.Platform.HWnd, pfd))
+        if(aglInitMultisample(GetModuleHandle(0), __ctx.Platform.HWnd, pfd))
         {
             aglDestroyWindow();
             return aglCreateWindow(Title);
         }
     }
-	ShowWindow(__ctx.Platform.HWnd, SW_SHOW);						// Show The Window
-	SetForegroundWindow(__ctx.Platform.HWnd);						// Slightly Higher Priority
-    SetFocus(__ctx.Platform.HWnd);									// Sets Keyboard Focus To The Window
+	ShowWindow(__ctx.Platform.HWnd, SW_SHOW);
+	SetForegroundWindow(__ctx.Platform.HWnd);
+    SetFocus(__ctx.Platform.HWnd);
     return true;
 }
 
 AGLDEF void
 aglToggleVSYNC()
 {
-    PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapInterval = (PFNWGLGETSWAPINTERVALEXTPROC) wglGetProcAddress("wglGetSwapIntervalEXT");
-    PFNWGLSWAPINTERVALEXTPROC wglSwapInterval = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress("wglSwapIntervalEXT");
-    if(wglGetSwapInterval) __ctx.VerticalSync = wglGetSwapInterval();
-    if(__ctx.Platform.GLContext && wglSwapInterval) wglSwapInterval(!__ctx.VerticalSync);
+    if(!wglGetSwapInterval || !wglGetSwapInterval)
+    {
+        wglGetSwapInterval = (PFNWGLGETSWAPINTERVALEXTPROC) AGL_GET_PROC("wglGetSwapIntervalEXT");
+        wglSwapInterval    = (PFNWGLSWAPINTERVALEXTPROC)    AGL_GET_PROC("wglSwapIntervalEXT");
+    }
+    
+    if(wglGetSwapInterval && wglSwapInterval)
+    {
+        __ctx.VerticalSync = wglGetSwapInterval();
+        wglSwapInterval(!__ctx.VerticalSync);
+    }
 }
 
 AGLDEF void
@@ -1251,19 +1248,27 @@ aglCaptureMouse(b32 Capture)
 
 #endif // PLATFORM LAYER IMPLEMENTATION
 
-
 // Opengl utility functions. Make opengl stuff easier to use.
+
+AGLDEF void
+aglShaderUse(u32 Program)
+{
+    __active_program = Program;
+    glUseProgram(Program);
+}
 
 AGLDEF b32
 aglShaderCompileAndAttach(u32 Program, const char *ShaderSource, GLenum Type)
 {
     b32 Result = false;
-    s32 ShaderID = glCreateShader(Type);
+    s32 ShaderID = glCreateShader(Type)
+		;
     if(glGetError() != GL_INVALID_ENUM)
     {
         glShaderSource(ShaderID, 1, &ShaderSource, 0);
         glCompileShader(ShaderID);
         
+
         s32 Status;
         glGetShaderStatus(ShaderID, &Status);
         if(Status == GL_FALSE)
@@ -1305,15 +1310,16 @@ aglShaderLink(u32 Program)
             AGL_ASSERT(!"Shader link error");
             Result = false;
         } else {
-            s32 MaxShaders = 12;
-            s32 AttachedShaders = 0;
             u32 ShaderIds[12] = {};
-            glGetAttachedShaders(Program, MaxShaders, &AttachedShaders, ShaderIds);
+            s32 AttachedShaders = 0;
+            glGetAttachedShaders(Program, sizeof(ShaderIds) / sizeof(ShaderIds[0]), &AttachedShaders, ShaderIds);
             for(s32 i=0; i < 12; i++)
             {
-                if(ShaderIds[i] != 0) glDeleteShader(ShaderIds[i]);
+                if(ShaderIds[i] != 0) {
+                    glDetachShader(Program, ShaderIds[i]);
+                    glDeleteShader(ShaderIds[i]);
+                }
             }
-            
             glUseProgram(Program);
             Result = true;
         }
@@ -1322,63 +1328,63 @@ aglShaderLink(u32 Program)
 }
 
 inline AGLDEF void
-aglShaderSetUniform1i(u32 Program, char *Uniform, s32 A)
+aglShaderSetUniform1i( char *Uniform, s32 A)
 {
-    glUniform1i(glGetUniformLocation(Program, Uniform), A);
+    glUniform1i(glGetUniformLocation(__active_program, Uniform), A);
 }
 
 inline AGLDEF void
-aglShaderSetUniform2i(u32 Program, char *Uniform, s32 A, s32 B)
+aglShaderSetUniform2i(char *Uniform, s32 A, s32 B)
 {
-    glUniform2i(glGetUniformLocation(Program, Uniform), A, B);
+    glUniform2i(glGetUniformLocation(__active_program, Uniform), A, B);
 }
 
 inline AGLDEF void
-aglShaderSetUniform3i(u32 Program, char *Uniform, s32 A, s32 B, s32 C)
+aglShaderSetUniform3i(char *Uniform, s32 A, s32 B, s32 C)
 {
-    glUniform3i(glGetUniformLocation(Program, Uniform), A, B, C);
+    glUniform3i(glGetUniformLocation(__active_program, Uniform), A, B, C);
 }
 
 inline AGLDEF void
-aglShaderSetUniform4i(u32 Program, char *Uniform, s32 A, s32 B, s32 C, s32 D)
+aglShaderSetUniform4i(char *Uniform, s32 A, s32 B, s32 C, s32 D)
 {
-    glUniform4i(glGetUniformLocation(Program, Uniform), A, B, C, D);
+    glUniform4i(glGetUniformLocation(__active_program, Uniform), A, B, C, D);
 }
 
 inline AGLDEF void
-aglShaderSetUniform1f(u32 Program, char *Uniform, r32 A)
+aglShaderSetUniform1f(char *Uniform, r32 A)
 {
-    glUniform1f(glGetUniformLocation(Program, Uniform), A);
+    glUniform1f(glGetUniformLocation(__active_program, Uniform), A);
 }
 
 inline AGLDEF void
-aglShaderSetUniform2f(u32 Program, char *Uniform, r32 A, r32 B)
+aglShaderSetUniform2f(char *Uniform, r32 A, r32 B)
 {
-    glUniform2f(glGetUniformLocation(Program, Uniform), A, B);
+    glUniform2f(glGetUniformLocation(__active_program, Uniform), A, B);
 }
 
 inline AGLDEF void
-aglShaderSetUniform3f(u32 Program, char *Uniform, r32 A, r32 B, r32 C)
+aglShaderSetUniform3f(char *Uniform, r32 A, r32 B, r32 C)
 {
-    glUniform3f(glGetUniformLocation(Program, Uniform), A, B, C);
+    glUniform3f(glGetUniformLocation(__active_program, Uniform), A, B, C);
 }
 
 inline AGLDEF void
-aglShaderSetUniform4f(u32 Program, char *Uniform, r32 A, r32 B, r32 C, r32 D)
+aglShaderSetUniform4f(char *Uniform, r32 A, r32 B, r32 C, r32 D)
 {
-    glUniform4f(glGetUniformLocation(Program, Uniform), A, B, C, D);
+    glUniform4f(glGetUniformLocation(__active_program, Uniform), A, B, C, D);
 }
 
 inline AGLDEF void
-aglShaderSetUniformMat3(u32 Program, char *Uniform, r32 *Matrix)
+aglShaderSetUniformMat3fv(char *Uniform, r32 *Matrix)
 {
-    glUniformMatrix3fv(glGetUniformLocation(Program, Uniform), 1, GL_FALSE, Matrix);
+    glUniformMatrix3fv(glGetUniformLocation(__active_program, Uniform), 1, GL_FALSE, Matrix);
 }
 
 inline AGLDEF void
-aglShaderSetUniformMat4(u32 Program, char *Uniform, r32 *Matrix)
+aglShaderSetUniformMat4fv(char *Uniform, r32 *Matrix)
 {
-    glUniformMatrix4fv(glGetUniformLocation(Program, Uniform), 1, GL_FALSE, Matrix);
+    glUniformMatrix4fv(glGetUniformLocation(__active_program, Uniform), 1, GL_FALSE, Matrix);
 }
 
 

@@ -10,6 +10,312 @@
     #define AGL_FREE(x,u)   free(x)
 #endif
 
+typedef struct
+{
+    s32 Mode;
+    v3  Position, Front, Right, Up;
+    r32 Speed, Sensitivity, Yaw, Pitch, FoV;
+    v3 *Target;
+} agl_camera3D;
+
+mat4x4       __agl_proj, __agl_view;
+agl_camera3D __agl_cam;
+
+void
+aglSetViewport3D(r32 FoV, s32 Width, s32 Height, r32 Near, r32 Far)
+{
+    static b32       CameraInitialized;
+    agl_camera3D     *Camera    = &__agl_cam;
+        
+    glViewport(0, 0, Width, Height);
+
+    if(!CameraInitialized)
+    {
+        Camera->Up          = V3i(0,1,0);
+        Camera->Position    = V3i(0, 10, -15);
+        Camera->Speed       = 10.f;
+        Camera->Sensitivity = .002f;
+        Camera->Yaw         = M_PI / 2;
+        Camera->Pitch       = -M_PI / 4;
+        Camera->FoV         = FoV;
+
+        CameraInitialized = true;
+    }
+
+    r32 Speed = __ctx.Delta * Camera->Speed;
+    switch(Camera->Mode)
+    {
+        case 0:
+        {
+            if(aglKeyDown('W')) Camera->Position += Camera->Front * Speed;
+            if(aglKeyDown('S')) Camera->Position -= Camera->Front * Speed;
+            if(aglKeyDown('D')) Camera->Position += Camera->Right * Speed;
+            if(aglKeyDown('A')) Camera->Position -= Camera->Right * Speed;
+
+            if(aglMouseDown(AGL_MOUSE_LEFT))
+            {
+                aglCaptureMouse(true);
+                aglShowCursor(false);
+                Camera->Yaw   += aglGetMouseDeltaX() * Camera->Sensitivity;
+                Camera->Pitch -= aglGetMouseDeltaY() * Camera->Sensitivity;
+            } else {
+                aglCaptureMouse(false);
+                aglShowCursor(true);
+            }
+        }
+    }
+     
+    switch(Camera->Mode)
+    {
+        case 0:
+        {
+            Camera->Front = V3(cosf(Camera->Pitch) * cosf(Camera->Yaw), sinf(Camera->Pitch), cosf(Camera->Pitch) * sinf(Camera->Yaw));
+            Camera->Front = aglmNormalizeV3(Camera->Front);
+                
+            Camera->Right = V3(cosf(Camera->Yaw + M_PI/2.0f), 0, sinf(Camera->Yaw + M_PI/2.0f));
+            Camera->Right = aglmNormalizeV3(Camera->Right);   
+        }break;
+        default:
+        {
+            AGL_ASSERT(!"Not implemented yet");
+        }break;
+    }
+
+    __agl_proj = aglmPerspective(Camera->FoV, (r32)Width / (r32)Height, .1f, 1000.0f);
+    __agl_view = aglmLookAt(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
+}
+
+#ifdef AGL_PREDEFINED_SHADERS
+
+static u32 __aglsl_skybox, __aglsl_skybox_vao, __aglsl_skybox_tex;
+static u32 __aglsl_shadowmap, __aglsl_shadowmap_fbo, __aglsl_shadowmap_tex;
+static v2  __aglsl_shadowmap_size = V2i(4096, 4096);
+
+void
+aglInitPredefinedShaders()
+{
+    float __aglsl_skybox_verts[] = {
+        -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
+        1.0f, -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
+        1.0f,  1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
+        1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,
+        1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f
+    };
+    const char __aglsl_skybox_vs[] = {
+        "#version 330\n"
+        "layout (location = 0) in vec3 position;\n"
+        "uniform mat4 projection;\n"
+        "uniform mat4 view;\n"
+        "out vec3 _texcoord;\n"
+        "void main() {\n"
+        "    vec4 pos = projection * view * vec4(position, 1.0);\n"
+        "    gl_Position = pos.xyww;\n"
+        "    _texcoord = position;\n"
+        "}"
+    };
+    const char __aglsl_skybox_fs[] = {
+        "#version 330\n"
+        "in vec3 _texcoord;\n"
+        "uniform samplerCube skybox;\n"
+        "out vec4 _color;\n"
+        "void main() {"    
+        "    _color = texture(skybox, _texcoord);\n"
+        "}"
+    };
+    const char __aglsl_shadowmap_vs[] = {
+        "#version 330\n"
+        "layout (location = 0) in vec3 position;\n"
+        "uniform mat4 lightview;\n"
+        "uniform mat4 model;\n"
+        "void main(){\n"
+        "    gl_Position = lightview * model * vec4(position, 1.0f);\n"
+        "}"   
+    };
+    const char __aglsl_shadowmap_fs[] = {
+        "#version 330\n"
+        "void main() {}\n"
+    };
+    const char __aglsl_fonts_vs[] = {
+        "#version 330\n"
+        "layout (location = 0) in vec4 combined;\n"
+        "out vec2 _texcoord;\n"
+        "void main() {\n"
+        "    gl_Position = vec4(combined.xy, 0, 1);\n"
+        "    _texcoord = combined.zw;\n"
+        "};"
+    };
+    const char __aglsl_fonts_fs[] = {
+        "#version 330\n"
+        "in vec2 _texcoord;\n"
+        "uniform sampler2dD texture;\n"
+        "uniform vec4 color;\n"
+        "void main() {\n"
+        "    gl_FragColor = vec4(1, 1, 1, texture2D(texture, _texcoord).r) * color;\n"
+        "}\n"
+    };
+    
+    // Skybox shader init
+    u32 _ign;
+    static b32 __Initialized = false;
+    if(!__Initialized)
+    {
+        __aglsl_skybox = glCreateProgram();
+        aglShaderCompileAndAttach(__aglsl_skybox, __aglsl_skybox_vs, GL_VERTEX_SHADER);
+        aglShaderCompileAndAttach(__aglsl_skybox, __aglsl_skybox_fs, GL_FRAGMENT_SHADER);
+        aglShaderLink(__aglsl_skybox);
+    
+        glGenTextures(1, &__aglsl_skybox_tex);
+        glGenVertexArrays(1, &__aglsl_skybox_vao);
+        glBindVertexArray(__aglsl_skybox_vao);
+        glGenBuffers(1, &_ign);
+        glBindBuffer(GL_ARRAY_BUFFER, _ign);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(__aglsl_skybox_verts), __aglsl_skybox_verts, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+        glBindVertexArray(0);
+
+        // Shadowmap shader init
+        __aglsl_shadowmap = glCreateProgram();
+        aglShaderCompileAndAttach(__aglsl_shadowmap, __aglsl_shadowmap_vs, GL_VERTEX_SHADER);
+        aglShaderCompileAndAttach(__aglsl_shadowmap, __aglsl_shadowmap_fs, GL_FRAGMENT_SHADER);
+        aglShaderLink(__aglsl_shadowmap);    
+
+        glGenTextures(1, &__aglsl_shadowmap_tex);
+        glBindTexture(GL_TEXTURE_2D, __aglsl_shadowmap_tex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, __aglsl_shadowmap_size.w, __aglsl_shadowmap_size.h, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    
+        glGenFramebuffers(1, &__aglsl_shadowmap_fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, __aglsl_shadowmap_fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, __aglsl_shadowmap_tex, 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        __Initialized = true;
+    }
+}
+
+void
+aglDeInitPredefinedShaders()
+{
+    glDeleteProgram(__aglsl_skybox);
+    glDeleteTextures(1, &__aglsl_skybox_tex);
+    glDeleteVertexArrays(1, &__aglsl_skybox_vao);
+
+    glDeleteProgram(__aglsl_shadowmap);
+    glDeleteTextures(1, &__aglsl_shadowmap_tex);
+    glDeleteFramebuffers(1, &__aglsl_shadowmap_fbo);
+}
+
+void
+aglSkyboxTextures(char *Textures[])
+{
+    glActiveTexture(GL_TEXTURE0);
+
+    s32 Width, Height, Components;
+    u8 *image;
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, __aglsl_skybox_tex);
+    for( s32 i=0; i < 6; i++)
+    {
+        image = stbi_load(Textures[i], &Width, &Height, &Components, 0);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, Width, Height,
+                     0, GL_RGB, GL_UNSIGNED_BYTE, image);
+        
+        stbi_image_free(image);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+}
+
+void aglSkyboxTextures(char *Front, char *Back, char *Up, char *Down, char *Right, char *Left)
+{
+    char *CubemapTextures[] = { Front, Back, Up, Down , Right, Left };
+    aglSkyboxTextures(CubemapTextures);
+}
+
+void aglSkyboxRender(mat4x4 Projection = __agl_proj, mat4x4 View = __agl_view)
+{
+    aglShaderUse(__aglsl_skybox);
+    
+    glDisable(GL_CULL_FACE);
+    glDepthMask(GL_FALSE);
+    
+    glBindVertexArray(__aglsl_skybox_vao);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, __aglsl_skybox_tex);            
+
+    mat4x4 p = Projection;
+    mat4x4 v = View;
+
+    v.m3 = 0.f; v.m7 = 0.f; v.m11 = 0.f; v.m12 = 0.f; v.m13 = 0.f; v.m14 = 0.f;
+    
+    aglShaderSetUniformMat4fv("projection", p.E);
+    aglShaderSetUniformMat4fv("view", v.E);
+    aglShaderSetUniform1i("mainTex", 0);
+            
+    glDrawArrays(GL_TRIANGLES, 0, 36);            
+
+    glBindVertexArray(0);
+    glDepthMask(GL_TRUE);
+}
+
+void aglShadowMapSize(s32 Width, s32 Height)
+{
+    __aglsl_shadowmap_size = V2i(Width, Height);
+    if(__aglsl_shadowmap_tex != 0)
+    {
+        glBindTexture(GL_TEXTURE_2D, __aglsl_shadowmap_tex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, __aglsl_shadowmap_size.w, __aglsl_shadowmap_size.h, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    }
+}
+
+void aglShadowStageBegin(mat4x4 LightView)
+{
+    aglShaderUse(__aglsl_shadowmap);
+    
+    glViewport(0, 0, __aglsl_shadowmap_size.w, __aglsl_shadowmap_size.h);
+    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    glFrontFace(GL_CCW);
+
+    aglShaderSetUniformMat4fv("lightview", LightView.E);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, __aglsl_shadowmap_fbo);
+    glClear(GL_DEPTH_BUFFER_BIT);
+}
+
+void aglShadowStageEnd()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+u32 aglShadowMap()
+{
+    return __aglsl_shadowmap_tex;
+}
+#endif
+
+#if 1
+
 #if defined(STB_TRUETYPE_IMPLEMENTATION)
 #define AGL_TRUETYPE_DEFAULT_TEXT_SIZE       48
 #define AGL_TRUETYPE_DEFAULT_TEXTURE_SIZE    1024
@@ -30,7 +336,6 @@ typedef struct
 #endif
 
 #define AGL_CORE3D_OBJECTS_MAX 1024
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -255,10 +560,10 @@ aglCameraUpdate(agl_camera *Camera, agl_context *Context)
 
             if(aglMouseDown(AGL_MOUSE_LEFT))
             {
-                aglPlatformSetCursor(false);
+                aglShowCursor(false);
                 Camera->Yaw += Context->Input.MouseXDelta * Camera->Sensitivity;
                 Camera->Pitch -= Context->Input.MouseYDelta * Camera->Sensitivity;
-            } else aglPlatformSetCursor(true);
+            } else aglShowCursor(true);
         }break;
         case AGL_CAMERA_MODE_STATIC:
         {
@@ -283,7 +588,7 @@ aglCameraUpdate(agl_camera *Camera, agl_context *Context)
                                 
             } else aglCaptureMouse(false);
             
-            v3 Forward = NormalizeV3(V3(Camera->Front.x, 0, Camera->Front.z));
+            v3 Forward = aglmNormalizeV3(V3(Camera->Front.x, 0, Camera->Front.z));
             if(aglKeyDown('W')) Camera->Position += Forward * Speed;
             if(aglKeyDown('S')) Camera->Position -= Forward * Speed;
             if(aglKeyDown('D')) Camera->Position += Camera->Right * Speed;
@@ -318,30 +623,30 @@ aglCameraView(agl_camera *Camera)
         case AGL_CAMERA_MODE_FREE:
         {
             Camera->Front = V3(cosf(Camera->Pitch) * cosf(Camera->Yaw), sinf(Camera->Pitch), cosf(Camera->Pitch) * sinf(Camera->Yaw));
-            Camera->Front = NormalizeV3(Camera->Front);
+            Camera->Front = aglmNormalizeV3(Camera->Front);
                 
             Camera->Right = V3(cosf(Camera->Yaw + M_PI/2.0f), 0, sinf(Camera->Yaw + M_PI/2.0f));
-            Camera->Right = NormalizeV3(Camera->Right);
+            Camera->Right = aglmNormalizeV3(Camera->Right);
             
-            Result = LookAtMat(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
+            Result = aglmLookAt(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
         }break;
         case AGL_CAMERA_MODE_STATIC:
         {
-            Result = LookAtMat(Camera->Position, Camera->Front, Camera->Up);
+            Result = aglmLookAt(Camera->Position, Camera->Front, Camera->Up);
         }break;
         case AGL_CAMERA_MODE_TARGET:
         {
-            Result = LookAtMat(Camera->Position, *Camera->Target, Camera->Up);
+            Result = aglmLookAt(Camera->Position, *Camera->Target, Camera->Up);
         }break;
         case AGL_CAMERA_MODE_FIRSTPERSON:
         {
             Camera->Front = V3(cosf(Camera->Pitch) * cosf(Camera->Yaw), sinf(Camera->Pitch), cosf(Camera->Pitch) * sinf(Camera->Yaw));
-            Camera->Front = NormalizeV3(Camera->Front);
+            Camera->Front = aglmNormalizeV3(Camera->Front);
                 
             Camera->Right = V3(cosf(Camera->Yaw + M_PI/2.0f), 0, sinf(Camera->Yaw + M_PI/2.0f));
-            Camera->Right = NormalizeV3(Camera->Right);
+            Camera->Right = aglmNormalizeV3(Camera->Right);
             
-            Result = LookAtMat(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
+            Result = aglmLookAt(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
         }break;
         default:
         {
@@ -424,6 +729,7 @@ aglDelete(agl_drawable *Drawable)
 static void
 aglCleanupResources()
 {
+    printf("ASDASDSD");
     for(s32 i=0; i < __agl_ObjectCounter; i++)
     {
         agl_drawable *o = __agl_Objects[i];
@@ -567,7 +873,7 @@ aglBeginScene3D(agl_context *Context, agl_camera *Camera)
     
     glViewport(0, 0, Context->Width, Context->Height);
 
-    CurrentProjectionMatrix = PerspectiveMat(Camera->FoV, (r32)Context->Width / (r32)Context->Height, .1f, 1000.0f);
+    CurrentProjectionMatrix = aglmPerspective(Camera->FoV, (r32)Context->Width / (r32)Context->Height, .1f, 1000.0f);
     CurrentViewMatrix       = aglCameraView(Camera);
 
     ActiveCamera = Camera;
@@ -600,8 +906,8 @@ aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = Mat4(1), agl_shader *Shader
             glUniform3f(Shader->Light[2], diffuse.r, diffuse.g, diffuse.b);
             glUniform3f(Shader->Light[3], specular.r, specular.g, specular.b);
 
-            mat4x4 Result = MulMat4(ModelMatrix, CurrentViewMatrix);
-            Result = MulMat4(Result, CurrentProjectionMatrix);
+            mat4x4 Result = aglmMulMat4(ModelMatrix, CurrentViewMatrix);
+            Result = aglmMulMat4(Result, CurrentProjectionMatrix);
 
             glUniformMatrix4fv(Shader->Matrix[0], 1, GL_FALSE, (const float *) Result.E);
             glUniformMatrix4fv(Shader->Matrix[1], 1, GL_FALSE, (const float *) ModelMatrix.E);
@@ -673,7 +979,8 @@ aglInitFont(const char *Filename,
     
     u8 *AtlasData = (u8*) AGL_MALLOC(Result->Width * Result->Height, 0);
     AGL_ASSERT(AtlasData);
-    
+
+    s32 PackSuccess = false;
     stbtt_pack_context Context;
     if(stbtt_PackBegin(&Context, AtlasData, Result->Width, Result->Height, 0, 1, 0))
     {
@@ -682,10 +989,16 @@ aglInitFont(const char *Filename,
                                AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER, AGL_TRUETYPE_DEFAULT_CHARACTERS, Result->CharacterInfo))
         {
             stbtt_PackEnd(&Context);
-        } else AGL_FREE(Result, 0);
+            PackSuccess = true;
+        }
     } else AGL_FREE(Result, 0);
-    
-    AGL_ASSERT(Result);
+
+    if(!PackSuccess)
+    {
+        AGL_FREE(Result, 0);
+        AGL_ASSERT(!"Failed to initialize font");
+        return 0;
+    }
     
     glGenTextures(1, &Result->Texture);
     glBindTexture(GL_TEXTURE_2D, Result->Texture);
@@ -991,9 +1304,9 @@ aglRenderText3D(agl_font_stbttf *Font, char *Text, r32 Scale = 1.0f,
 
     glUseProgram(FontRenderingShader->Program);
     
-    mat4x4 World = SclMat((1.0f / Font->Width) * Scale, (1.0f / Font->Height) * Scale, Z);
-    World = MulMat4(World, TrlMat(X, Y, Z));
-    mat4x4 ViewProj = MulMat4(CurrentViewMatrix, CurrentProjectionMatrix);
+    mat4x4 World = aglmSclMat((1.0f / Font->Width) * Scale, (1.0f / Font->Height) * Scale, Z);
+    World = aglmMulMat4(World, aglmTrlMat(X, Y, Z));
+    mat4x4 ViewProj = aglmMulMat4(CurrentViewMatrix, CurrentProjectionMatrix);
 
     glBindTexture(GL_TEXTURE_2D, Font->Texture);
     glUniformMatrix4fv(FontRenderingShader->Bindings[0], 1, GL_FALSE, (const float *) ViewProj.E);
@@ -1103,6 +1416,8 @@ aglRenderText2D(agl_font_stbttf *Font, char *Text,
     AGL_FREE(texdata, 0);
     AGL_FREE(idata, 0);    
 }
+
+#endif
 
 #endif
 
