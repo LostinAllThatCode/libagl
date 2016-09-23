@@ -85,236 +85,59 @@ aglSetViewport3D(r32 FoV, s32 Width, s32 Height, r32 Near, r32 Far)
     __agl_view = aglmLookAt(Camera->Position, Camera->Position + Camera->Front, Camera->Up);
 }
 
-#ifdef AGL_PREDEFINED_SHADERS
 
-static u32 __aglsl_skybox, __aglsl_skybox_vao, __aglsl_skybox_tex;
-static u32 __aglsl_shadowmap, __aglsl_shadowmap_fbo, __aglsl_shadowmap_tex;
-static v2  __aglsl_shadowmap_size = V2i(4096, 4096);
-
-void
-aglInitPredefinedShaders()
+/*
+agl_font *
+aglInitFont(const char *Filename, s32 FontSize)
 {
-    float __aglsl_skybox_verts[] = {
-        -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
-        1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
-        -1.0f, -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
-        -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
-        1.0f, -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
-        1.0f,  1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
-        -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
-        1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
-        -1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,
-        1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f,
-        -1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,
-        1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f
-    };
-    const char __aglsl_skybox_vs[] = {
-        "#version 330\n"
-        "layout (location = 0) in vec3 position;\n"
-        "uniform mat4 projection;\n"
-        "uniform mat4 view;\n"
-        "out vec3 _texcoord;\n"
-        "void main() {\n"
-        "    vec4 pos = projection * view * vec4(position, 1.0);\n"
-        "    gl_Position = pos.xyww;\n"
-        "    _texcoord = position;\n"
-        "}"
-    };
-    const char __aglsl_skybox_fs[] = {
-        "#version 330\n"
-        "in vec3 _texcoord;\n"
-        "uniform samplerCube skybox;\n"
-        "out vec4 _color;\n"
-        "void main() {"    
-        "    _color = texture(skybox, _texcoord);\n"
-        "}"
-    };
-    const char __aglsl_shadowmap_vs[] = {
-        "#version 330\n"
-        "layout (location = 0) in vec3 position;\n"
-        "uniform mat4 lightview;\n"
-        "uniform mat4 model;\n"
-        "void main(){\n"
-        "    gl_Position = lightview * model * vec4(position, 1.0f);\n"
-        "}"   
-    };
-    const char __aglsl_shadowmap_fs[] = {
-        "#version 330\n"
-        "void main() {}\n"
-    };
-    const char __aglsl_fonts_vs[] = {
-        "#version 330\n"
-        "layout (location = 0) in vec4 combined;\n"
-        "out vec2 _texcoord;\n"
-        "void main() {\n"
-        "    gl_Position = vec4(combined.xy, 0, 1);\n"
-        "    _texcoord = combined.zw;\n"
-        "};"
-    };
-    const char __aglsl_fonts_fs[] = {
-        "#version 330\n"
-        "in vec2 _texcoord;\n"
-        "uniform sampler2dD texture;\n"
-        "uniform vec4 color;\n"
-        "void main() {\n"
-        "    gl_FragColor = vec4(1, 1, 1, texture2D(texture, _texcoord).r) * color;\n"
-        "}\n"
-    };
-    
-    // Skybox shader init
-    u32 _ign;
-    static b32 __Initialized = false;
-    if(!__Initialized)
+    agl_font *Result = (agl_font *) AGL_MALLOC(sizeof(agl_font), 0);
+    if(Result)
     {
-        __aglsl_skybox = glCreateProgram();
-        aglShaderCompileAndAttach(__aglsl_skybox, __aglsl_skybox_vs, GL_VERTEX_SHADER);
-        aglShaderCompileAndAttach(__aglsl_skybox, __aglsl_skybox_fs, GL_FRAGMENT_SHADER);
-        aglShaderLink(__aglsl_skybox);
-    
-        glGenTextures(1, &__aglsl_skybox_tex);
-        glGenVertexArrays(1, &__aglsl_skybox_vao);
-        glBindVertexArray(__aglsl_skybox_vao);
-        glGenBuffers(1, &_ign);
-        glBindBuffer(GL_ARRAY_BUFFER, _ign);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(__aglsl_skybox_verts), __aglsl_skybox_verts, GL_STATIC_DRAW);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-        glBindVertexArray(0);
-
-        // Shadowmap shader init
-        __aglsl_shadowmap = glCreateProgram();
-        aglShaderCompileAndAttach(__aglsl_shadowmap, __aglsl_shadowmap_vs, GL_VERTEX_SHADER);
-        aglShaderCompileAndAttach(__aglsl_shadowmap, __aglsl_shadowmap_fs, GL_FRAGMENT_SHADER);
-        aglShaderLink(__aglsl_shadowmap);    
-
-        glGenTextures(1, &__aglsl_shadowmap_tex);
-        glBindTexture(GL_TEXTURE_2D, __aglsl_shadowmap_tex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, __aglsl_shadowmap_size.w, __aglsl_shadowmap_size.h, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    
-        glGenFramebuffers(1, &__aglsl_shadowmap_fbo);
-        glBindFramebuffer(GL_FRAMEBUFFER, __aglsl_shadowmap_fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, __aglsl_shadowmap_tex, 0);
-        glDrawBuffer(GL_NONE);
-        glReadBuffer(GL_NONE);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        __Initialized = true;
+        Result->FontSize     = FontSize;
+        Result->Width        = 512;
+        Result->Height       = 512;
     }
-}
+    
+    char *FontData = aglReadFile(Filename);
+    
+    u8 *AtlasData = (u8*) AGL_MALLOC(512 * 512, 0);
+    AGL_ASSERT(AtlasData);
 
-void
-aglDeInitPredefinedShaders()
-{
-    glDeleteProgram(__aglsl_skybox);
-    glDeleteTextures(1, &__aglsl_skybox_tex);
-    glDeleteVertexArrays(1, &__aglsl_skybox_vao);
-
-    glDeleteProgram(__aglsl_shadowmap);
-    glDeleteTextures(1, &__aglsl_shadowmap_tex);
-    glDeleteFramebuffers(1, &__aglsl_shadowmap_fbo);
-}
-
-void
-aglSkyboxTextures(char *Textures[])
-{
-    glActiveTexture(GL_TEXTURE0);
-
-    s32 Width, Height, Components;
-    u8 *image;
-
-    glBindTexture(GL_TEXTURE_CUBE_MAP, __aglsl_skybox_tex);
-    for( s32 i=0; i < 6; i++)
+    s32 PackSuccess = false;
+    stbtt_pack_context Context;
+    if(stbtt_PackBegin(&Context, AtlasData, 512, 512, 0, 1, 0))
     {
-        image = stbi_load(Textures[i], &Width, &Height, &Components, 0);
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, Width, Height,
-                     0, GL_RGB, GL_UNSIGNED_BYTE, image);
-        
-        stbi_image_free(image);
-    }
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-}
+        stbtt_PackSetOversampling(&Context, Result->OverSampleX,  Result->OverSampleY);
+        if(stbtt_PackFontRange(&Context, (u8 *) FontData, 0, Result->FontSize,
+                               AGL_TRUETYPE_DEFAULT_FIRST_CHARACTER, AGL_TRUETYPE_DEFAULT_CHARACTERS, Result->CharacterInfo))
+        {
+            stbtt_PackEnd(&Context);
+            PackSuccess = true;
+        }
+    } else AGL_FREE(Result, 0);
 
-void aglSkyboxTextures(char *Front, char *Back, char *Up, char *Down, char *Right, char *Left)
-{
-    char *CubemapTextures[] = { Front, Back, Up, Down , Right, Left };
-    aglSkyboxTextures(CubemapTextures);
-}
-
-void aglSkyboxRender(mat4x4 Projection = __agl_proj, mat4x4 View = __agl_view)
-{
-    aglShaderUse(__aglsl_skybox);
-    
-    glDisable(GL_CULL_FACE);
-    glDepthMask(GL_FALSE);
-    
-    glBindVertexArray(__aglsl_skybox_vao);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, __aglsl_skybox_tex);            
-
-    mat4x4 p = Projection;
-    mat4x4 v = View;
-
-    v.m3 = 0.f; v.m7 = 0.f; v.m11 = 0.f; v.m12 = 0.f; v.m13 = 0.f; v.m14 = 0.f;
-    
-    aglShaderSetUniformMat4fv("projection", p.E);
-    aglShaderSetUniformMat4fv("view", v.E);
-    aglShaderSetUniform1i("mainTex", 0);
-            
-    glDrawArrays(GL_TRIANGLES, 0, 36);            
-
-    glBindVertexArray(0);
-    glDepthMask(GL_TRUE);
-}
-
-void aglShadowMapSize(s32 Width, s32 Height)
-{
-    __aglsl_shadowmap_size = V2i(Width, Height);
-    if(__aglsl_shadowmap_tex != 0)
+    if(!PackSuccess)
     {
-        glBindTexture(GL_TEXTURE_2D, __aglsl_shadowmap_tex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, __aglsl_shadowmap_size.w, __aglsl_shadowmap_size.h, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        AGL_FREE(Result, 0);
+        AGL_ASSERT(!"Failed to initialize font");
+        return 0;
     }
-}
-
-void aglShadowStageBegin(mat4x4 LightView)
-{
-    aglShaderUse(__aglsl_shadowmap);
     
-    glViewport(0, 0, __aglsl_shadowmap_size.w, __aglsl_shadowmap_size.h);
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT);
-    glFrontFace(GL_CCW);
+    glGenTextures(1, &Result->Texture);
+    glBindTexture(GL_TEXTURE_2D, Result->Texture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, Result->Width, Result->Height, 0, GL_RED, GL_UNSIGNED_BYTE, AtlasData);
+    glGenerateMipmap(GL_TEXTURE_2D);
 
-    aglShaderSetUniformMat4fv("lightview", LightView.E);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, __aglsl_shadowmap_fbo);
-    glClear(GL_DEPTH_BUFFER_BIT);
+    AGL_FREE(FontData, 0);
+    AGL_FREE(AtlasData, 0);
+    
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return Result;
 }
+*/
 
-void aglShadowStageEnd()
-{
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-u32 aglShadowMap()
-{
-    return __aglsl_shadowmap_tex;
-}
-#endif
-
-#if 1
+#if 0
 
 #if defined(STB_TRUETYPE_IMPLEMENTATION)
 #define AGL_TRUETYPE_DEFAULT_TEXT_SIZE       48

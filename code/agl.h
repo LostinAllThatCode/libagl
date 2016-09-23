@@ -22,7 +22,11 @@
 #define AGL_WINDOW_HEIGHT 768
 #endif
 #endif
-    
+
+#ifndef AGL_STEP
+#define AGL_STEP        0.016
+#endif
+
 #ifndef AGL_INIT
 #define AGL_INIT        aglInitStub
 #endif
@@ -328,8 +332,6 @@ static int __active_program;
 #define AGL_GET_PROC(x) wglGetProcAddress(x)
 #endif
 
-
-
 void
 aglInitProcs()
 {
@@ -511,11 +513,7 @@ typedef struct
     b32             Active;
     s32             Width;
     s32             Height;
-    s32             FPS;    
     r32             Delta;
-    u32             FrameCount;
-    u32             StartTime;
-    u32             TicksLastFrame;
     b32             VerticalSync;
     b32             EnableMSAA;
     b32             MultisampleSupported;
@@ -546,7 +544,7 @@ AGLDEF s32   aglGetMouseDeltaY();
 AGLDEF s32   aglGetMousePosX();
 AGLDEF s32   aglGetMousePosY();
 AGLDEF s32   aglGetMouseWheelDelta();
-AGLDEF u32   aglGetTicks();
+AGLDEF r32   aglGetTimeStep(r32 StepMin);
 AGLDEF void  aglHandleEvents();
 AGLDEF b32   aglIsWindowActive();
 AGLDEF b32   aglKeyDown(u8 Key);
@@ -584,61 +582,25 @@ AGL_MAIN
         __ctx.GLInfo.ShadingLanguageVersion = (char *) glGetString(GL_SHADING_LANGUAGE_VERSION);
 
         aglInitProcs();
-
         AGL_INIT(&__ctx);
         while(__ctx.Running)
         {
             aglHandleEvents();
-                
+            __ctx.Delta = aglGetTimeStep(AGL_STEP);
             AGL_LOOP(__ctx.Delta);
-            
-            aglSwapBuffers();
         }
-        
         AGL_CLEANUP();
-        
         aglDestroyWindow();
     }
     return 0;
 }
 
-AGLDEF void
-aglInitStub(agl_context *Context)
-{
-    // Stub function
-}
-
-AGLDEF void
-aglCleanUpStub()
-{
-    // Stub function
-}
-
-AGLDEF void
-aglLoopStub(float Delta)
-{
-    // Stub function
-};
-
-AGLDEF void
-aglKeyDownStub(char Key)
-{
-    // Stub function
-};
-
-AGLDEF void
-aglKeyUpStub(char Key)
-{
-    // Stub function
-};
-
-AGLDEF void
-aglResizeStub(int Width, int Height)
-{
-    // Stub function
-    // Automatically updates the viewport after a resize event was triggered.
-    glViewport(0, 0, Width, Height);
-};
+AGLDEF void aglInitStub(agl_context *Context) {}
+AGLDEF void aglCleanUpStub() {}
+AGLDEF void aglLoopStub(float Delta) {}
+AGLDEF void aglKeyDownStub(char Key) {}
+AGLDEF void aglKeyUpStub(char Key) {}
+AGLDEF void aglResizeStub(int Width, int Height) {}
 
 AGLDEF r32
 aglGetDelta()
@@ -748,22 +710,6 @@ aglToggleFullscreen()
 AGLDEF void
 aglHandleEvents()
 {
-    __ctx.FrameCount++;
-
-    u32 Now = aglGetTicks();
-    // Calculate time spend per loop
-    r32 dTime = (Now - __ctx.StartTime) / 1000.f;
-    if(dTime > 0.25f && __ctx.FrameCount > 10)
-    {
-        // Calculate frames per second
-        __ctx.FPS = (s32) (__ctx.FrameCount / (dTime));
-        __ctx.FrameCount = 0;
-        __ctx.StartTime = Now;
-    }
-    // Calculate delta time
-    __ctx.Delta = (Now - __ctx.TicksLastFrame) / 1000.f;
-    __ctx.TicksLastFrame = Now;
-
     // Capture mouse position and calculate delta positions.
     // This is done this way because of windows inaccurate mouse position received via message queue.
     POINT MousePos;
@@ -885,21 +831,27 @@ aglSleep(u32 Milliseconds)
     Sleep(Milliseconds);
 } 
 
-AGLDEF u32
-aglGetTicks()
+AGLDEF r32
+aglGetTimeStep(r32 StepMin)
 {
-    if (!__ctx.Platform.TimerInit) {
-        QueryPerformanceFrequency(&__ctx.Platform.Frequency);
-        QueryPerformanceCounter(&__ctx.Platform.Init);
-        __ctx.Platform.TimerInit = true;
+    r32 ElapsedTime;
+    r64 NowTime;
+    static r64 LastTime = -1;
+   
+    if (LastTime == -1)
+        LastTime = timeGetTime() / 1000.0 - StepMin;
+
+    for(;;) {
+        NowTime = timeGetTime() / 1000.0;
+        ElapsedTime = (r32) (NowTime - LastTime);
+        if (ElapsedTime >= StepMin) {
+            LastTime = NowTime;
+            return ElapsedTime;
+        }
+#if 1
+        aglSleep(2);
+#endif
     }
-    
-    LARGE_INTEGER Now;
-    QueryPerformanceCounter(&Now);
-    Now.QuadPart -= __ctx.Platform.Init.QuadPart;
-    Now.QuadPart *= 1000;
-    Now.QuadPart /= __ctx.Platform.Frequency.QuadPart;
-    return (u32) Now.QuadPart;
 }
 
 AGLDEF void
@@ -1247,145 +1199,6 @@ aglCaptureMouse(b32 Capture)
 #elif defined(__APPLE) // UNIX
 
 #endif // PLATFORM LAYER IMPLEMENTATION
-
-// Opengl utility functions. Make opengl stuff easier to use.
-
-AGLDEF void
-aglShaderUse(u32 Program)
-{
-    __active_program = Program;
-    glUseProgram(Program);
-}
-
-AGLDEF b32
-aglShaderCompileAndAttach(u32 Program, const char *ShaderSource, GLenum Type)
-{
-    b32 Result = false;
-    s32 ShaderID = glCreateShader(Type)
-		;
-    if(glGetError() != GL_INVALID_ENUM)
-    {
-        glShaderSource(ShaderID, 1, &ShaderSource, 0);
-        glCompileShader(ShaderID);
-        
-
-        s32 Status;
-        glGetShaderStatus(ShaderID, &Status);
-        if(Status == GL_FALSE)
-        {
-            s32 Length = 0;
-            char ErrorMessage[1024];
-            glGetShaderInfoLog(ShaderID, 1024, &Length, ErrorMessage);
-            AGL_PRINT("%s\n", ErrorMessage);
-            AGL_ASSERT(!"Shader compile error");
-            Result = false;
-        } else {
-            glAttachShader(Program, ShaderID);
-            Result = true;
-        }
-    }
-    else
-    {
-        AGL_PRINT("%s\n", ShaderSource);
-        AGL_ASSERT(!"Shader compile error");
-    }
-    return Result;
-}
-
-AGLDEF b32
-aglShaderLink(u32 Program)
-{
-    b32 Result = false;
-    glLinkProgram(Program);
-    if(glGetError() != GL_INVALID_VALUE && glGetError() != GL_INVALID_OPERATION)
-    {
-        s32 Status;
-        glGetProgramStatus(Program, &Status);
-        if(Status == GL_FALSE)
-        {
-            s32 Length = 0;
-            char ErrorMessage[1024];
-            glGetProgramInfoLog(Program, 1024, &Length, ErrorMessage);
-            AGL_PRINT("%s\n", ErrorMessage);
-            AGL_ASSERT(!"Shader link error");
-            Result = false;
-        } else {
-            u32 ShaderIds[12] = {};
-            s32 AttachedShaders = 0;
-            glGetAttachedShaders(Program, sizeof(ShaderIds) / sizeof(ShaderIds[0]), &AttachedShaders, ShaderIds);
-            for(s32 i=0; i < 12; i++)
-            {
-                if(ShaderIds[i] != 0) {
-                    glDetachShader(Program, ShaderIds[i]);
-                    glDeleteShader(ShaderIds[i]);
-                }
-            }
-            glUseProgram(Program);
-            Result = true;
-        }
-    } else AGL_ASSERT(!"Shader link error");
-    return Result;
-}
-
-inline AGLDEF void
-aglShaderSetUniform1i( char *Uniform, s32 A)
-{
-    glUniform1i(glGetUniformLocation(__active_program, Uniform), A);
-}
-
-inline AGLDEF void
-aglShaderSetUniform2i(char *Uniform, s32 A, s32 B)
-{
-    glUniform2i(glGetUniformLocation(__active_program, Uniform), A, B);
-}
-
-inline AGLDEF void
-aglShaderSetUniform3i(char *Uniform, s32 A, s32 B, s32 C)
-{
-    glUniform3i(glGetUniformLocation(__active_program, Uniform), A, B, C);
-}
-
-inline AGLDEF void
-aglShaderSetUniform4i(char *Uniform, s32 A, s32 B, s32 C, s32 D)
-{
-    glUniform4i(glGetUniformLocation(__active_program, Uniform), A, B, C, D);
-}
-
-inline AGLDEF void
-aglShaderSetUniform1f(char *Uniform, r32 A)
-{
-    glUniform1f(glGetUniformLocation(__active_program, Uniform), A);
-}
-
-inline AGLDEF void
-aglShaderSetUniform2f(char *Uniform, r32 A, r32 B)
-{
-    glUniform2f(glGetUniformLocation(__active_program, Uniform), A, B);
-}
-
-inline AGLDEF void
-aglShaderSetUniform3f(char *Uniform, r32 A, r32 B, r32 C)
-{
-    glUniform3f(glGetUniformLocation(__active_program, Uniform), A, B, C);
-}
-
-inline AGLDEF void
-aglShaderSetUniform4f(char *Uniform, r32 A, r32 B, r32 C, r32 D)
-{
-    glUniform4f(glGetUniformLocation(__active_program, Uniform), A, B, C, D);
-}
-
-inline AGLDEF void
-aglShaderSetUniformMat3fv(char *Uniform, r32 *Matrix)
-{
-    glUniformMatrix3fv(glGetUniformLocation(__active_program, Uniform), 1, GL_FALSE, Matrix);
-}
-
-inline AGLDEF void
-aglShaderSetUniformMat4fv(char *Uniform, r32 *Matrix)
-{
-    glUniformMatrix4fv(glGetUniformLocation(__active_program, Uniform), 1, GL_FALSE, Matrix);
-}
 
 
 #endif // AGL_IMPLEMENTATION

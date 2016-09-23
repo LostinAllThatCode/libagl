@@ -795,6 +795,8 @@ aglmOrhto(r32 Left, r32 Right, r32 Bottom, r32 Top, r32 Near, r32 Far)
     Result.m13 = -((Top + Bottom) / (Top - Bottom));
     Result.m14 = -((Far + Near) / (Far - Near));
     Result.m15 = 1;
+    
+    Result = aglmTransposeMat4(Result);
     return Result;
 }
 

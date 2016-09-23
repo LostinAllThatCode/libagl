@@ -9,6 +9,7 @@
 #include "stb_truetype.h"
 
 #define AGL_IMPLEMENTATION
+#define AGL_DEBUG
 #define AGL_OPENGL_VSYNC
 #define AGL_OPENGL_MSAA
 #define AGL_OPENGL_MSAA_SAMPLES 8 
@@ -91,12 +92,11 @@ CleanUp()
 
 void
 GameLoop(float Delta)
-{
+{    
     if(aglIsWindowActive())
     {
         time_pos += Delta;
-        u32 Ticks = aglGetTicks();
-
+        
         if(aglKeyUp(VK_ESCAPE)) aglCloseWindow();
         if(aglKeyUp(VK_F1)) aglToggleVSYNC();
         if(aglKeyUp(VK_F2)) ShowPoints = !ShowPoints; 
@@ -134,7 +134,7 @@ GameLoop(float Delta)
 
         for(int i=12; i > 0;i--){
             model = aglmMulMat4(aglmSclMat(1, fmax(fabs(sinf((time_pos+i) * speed )), 0.0f), 1),
-                            aglmTrlMat(-26 + Pos.x + i * 4, Pos.y, Pos.z));
+                                aglmTrlMat(-26 + Pos.x + i * 4, Pos.y, Pos.z));
             aglShaderSetUniformMat4fv("model", model.E);
             glBindVertexArray(Quad->Mesh.VAO);
             glDrawArrays(Quad->GLRenderMode, 0, Quad->Mesh.VertexCount);
@@ -163,7 +163,7 @@ GameLoop(float Delta)
             aglDraw(Floor, aglmSclMat(50.f, .1f, 50.f), &DefShader, ShowPoints);
             for(int i=1; i< 13;i++){
                 aglDraw(Quad, aglmMulMat4(aglmSclMat(1, fmax(fabs(sinf((time_pos+i) * speed )), 0.0f), 1),
-                                      aglmTrlMat(-26 + Pos.x + i * 4, Pos.y, Pos.z)), &DefShader, ShowPoints);
+                                          aglmTrlMat(-26 + Pos.x + i * 4, Pos.y, Pos.z)), &DefShader, ShowPoints);
             }
 
             aglSkyboxRender(CurrentProjectionMatrix, CurrentViewMatrix);
@@ -171,7 +171,7 @@ GameLoop(float Delta)
         aglEndScene3D(Ctx, &Camera);
 
         glEnable(GL_BLEND);        
-        sprintf(TextBuffer, "FPS:%i, dt:%f, Ticks:%u", Ctx->FPS, Ctx->Delta, Ticks);      
+        sprintf(TextBuffer, "dt:%f", Delta);      
         aglRenderText2D(FontConsola, TextBuffer, 10, 12);
         sprintf(TextBuffer, "X:%i, Y:%i, Z:%i, FoV:%i, Yaw:%i , Pitch:%i",
                 (s32) Camera.Position.x, (s32) Camera.Position.y, (s32) Camera.Position.z,
@@ -184,5 +184,8 @@ GameLoop(float Delta)
         sprintf(TextBuffer, "Viewport: %ix%i", Ctx->Width, Ctx->Height);
         aglRenderText2D(FontConsola, TextBuffer, 10, 72);
         glDisable(GL_BLEND);
+
+        
+        aglSwapBuffers();
     }
 }
