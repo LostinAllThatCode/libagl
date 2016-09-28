@@ -22,7 +22,7 @@ mat4x4       __agl_proj, __agl_view;
 agl_camera3D __agl_cam;
 
 void
-aglSetViewport3D(r32 FoV, s32 Width, s32 Height, r32 Near, r32 Far)
+aglSetViewport3D(r32 FoV, s32 Width, s32 Height, r32 Near = 0.1f, r32 Far = 1000.f)
 {
     static b32       CameraInitialized;
     agl_camera3D     *Camera    = &__agl_cam;
@@ -137,7 +137,7 @@ aglInitFont(const char *Filename, s32 FontSize)
 }
 */
 
-#if 0
+#if 1
 
 #if defined(STB_TRUETYPE_IMPLEMENTATION)
 #define AGL_TRUETYPE_DEFAULT_TEXT_SIZE       48
@@ -236,7 +236,7 @@ extern "C" {
     s32 __agl_ObjectCounter;
 
    #define GLSL(core, source) "#version "#core"\n" #source
-    #include "agl_shaders.h"
+    //#include "agl_shaders.h"
     enum { AGL_SHADER_TYPE_CUSTOM = 0,
            AGL_SHADER_TYPE_SHADOWMAP = 1,
            AGL_SHADER_TYPE_LIGHTING = 2,
@@ -250,7 +250,7 @@ extern "C" {
         s32 BindingCount;
     } agl_shader_ext;
     agl_shader_ext *FontRenderingShader;
-    
+#if 0
     typedef struct
     {
         b32 Success;
@@ -282,7 +282,7 @@ extern "C" {
            3 = light.shininess;
         */
     } agl_shader;
-
+#endif
     typedef struct
     {
         s32 VAO;
@@ -300,6 +300,7 @@ s32 MaterialIndexCount;
 mat4x4 CurrentProjectionMatrix, CurrentViewMatrix;
 agl_camera *ActiveCamera;
 
+/*
 inline agl_shader
 aglInitDefaultShader()
 {
@@ -351,7 +352,7 @@ aglShaderSetBinding(agl_shader_ext *Shader, char *Uniform)
 
     return Result;
 }
-    
+*/ 
     
 extern void
 aglCameraInit(agl_camera *Camera, s32 Mode = 0, v3 Position = V3(0, 0, 1),
@@ -425,17 +426,7 @@ aglCameraUpdate(agl_camera *Camera, agl_context *Context)
     }
 }
 
-inline agl_material
-aglMaterial(v3 Ambient = V3(1.0f), v3 Diffuse = V3(1.0f), v3 Specular = V3(0.5f), r32 Shininess = 32.0f)
-{
-    agl_material Result = {};
-    Result.Ambient  = Ambient;
-    Result.Diffuse  = Diffuse;
-    Result.Specular = Specular;
-    Result.Shininess = Shininess;
-    Result.ID = ++MaterialIndexCount;
-    return Result;
-}
+
 
 inline mat4x4
 aglCameraView(agl_camera *Camera)
@@ -476,6 +467,18 @@ aglCameraView(agl_camera *Camera)
             AGL_ASSERT(!"Not implemented yet");
         }break;
     }
+    return Result;
+}
+
+inline agl_material
+aglMaterial(v3 Ambient = V3(1.0f), v3 Diffuse = V3(1.0f), v3 Specular = V3(0.5f), r32 Shininess = 32.0f)
+{
+    agl_material Result = {};
+    Result.Ambient  = Ambient;
+    Result.Diffuse  = Diffuse;
+    Result.Specular = Specular;
+    Result.Shininess = Shininess;
+    Result.ID = ++MaterialIndexCount;
     return Result;
 }
 
@@ -715,33 +718,33 @@ aglDraw(agl_drawable *Drawable, mat4x4 ModelMatrix = Mat4(1), agl_shader *Shader
 {
     if(Drawable)
     {
-        if(Shader && Shader->IsDefault)
+        if(Shader)
         {
             //glUseProgram(Shader->Id);
-
+            glUseProgram(Shader->Id);
             v3 lightColor = V3(1, 1, 1);
             v3 diffuse = lightColor * .5f;
             v3 ambient = lightColor * .2f;
             v3 specular = lightColor * .5f;
         
-            glUniform3f(Shader->Light[0], 25.f, 25.f, 25.f);
-            glUniform3f(Shader->Light[1], ambient.r, ambient.g, ambient.b);
-            glUniform3f(Shader->Light[2], diffuse.r, diffuse.g, diffuse.b);
-            glUniform3f(Shader->Light[3], specular.r, specular.g, specular.b);
+            aglShaderSetUniform3f(Shader, "light.position", 25.f, 25.f, 25.f);
+            aglShaderSetUniform3f(Shader, "light.ambient", ambient.r, ambient.g, ambient.b);
+            aglShaderSetUniform3f(Shader, "light.diffuse", diffuse.r, diffuse.g, diffuse.b);
+            aglShaderSetUniform3f(Shader, "light.specular", specular.r, specular.g, specular.b);
 
-            mat4x4 Result = aglmMulMat4(ModelMatrix, CurrentViewMatrix);
-            Result = aglmMulMat4(Result, CurrentProjectionMatrix);
+            mat4x4 Result = aglmMulMat4(ModelMatrix, __agl_view);
+            Result = aglmMulMat4(Result, __agl_proj);
 
-            glUniformMatrix4fv(Shader->Matrix[0], 1, GL_FALSE, (const float *) Result.E);
-            glUniformMatrix4fv(Shader->Matrix[1], 1, GL_FALSE, (const float *) ModelMatrix.E);
-            glUniformMatrix4fv(Shader->Matrix[2], 1, GL_FALSE, (const float *) CurrentViewMatrix.E);
+            aglShaderSetUniformMat4fv(Shader, "matrixModelViewProj", Result.E);
+            aglShaderSetUniformMat4fv(Shader, "matrixModel", ModelMatrix.E);
+            aglShaderSetUniformMat4fv(Shader, "matrixView", CurrentViewMatrix.E);
 
-            glUniform3f(Shader->Material[0], Drawable->Material.Ambient.r, Drawable->Material.Ambient.g, Drawable->Material.Ambient.b);
-            glUniform3f(Shader->Material[1], Drawable->Material.Diffuse.r, Drawable->Material.Diffuse.g, Drawable->Material.Diffuse.b);
-            glUniform3f(Shader->Material[2], Drawable->Material.Specular.r, Drawable->Material.Specular.g, Drawable->Material.Specular.b);
-            glUniform1f(Shader->Material[3], Drawable->Material.Shininess);
+            aglShaderSetUniform3f(Shader, "material.ambient", Drawable->Material.Ambient.r, Drawable->Material.Ambient.g, Drawable->Material.Ambient.b);
+            aglShaderSetUniform3f(Shader, "material.diffuse", Drawable->Material.Diffuse.r, Drawable->Material.Diffuse.g, Drawable->Material.Diffuse.b);
+            aglShaderSetUniform3f(Shader, "material.specular", Drawable->Material.Specular.r, Drawable->Material.Specular.g, Drawable->Material.Specular.b);
+            aglShaderSetUniform1f(Shader, "material.shininess", Drawable->Material.Shininess);
 
-            glUniform3f(Shader->Camera, ActiveCamera->Position.x, ActiveCamera->Position.y, ActiveCamera->Position.z);
+            aglShaderSetUniform3f(Shader, "viewPos", __agl_cam.Position.x, __agl_cam.Position.y, __agl_cam.Position.z);
 
             glBindVertexArray(Drawable->Mesh.VAO);
             

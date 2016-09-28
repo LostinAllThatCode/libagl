@@ -23,10 +23,6 @@
 #endif
 #endif
 
-#ifndef AGL_STEP
-#define AGL_STEP        0.016
-#endif
-
 #ifndef AGL_INIT
 #define AGL_INIT        aglInitStub
 #endif
@@ -482,9 +478,6 @@ typedef uintptr_t  uintptr;
 #define AGL_INTERNAL_TYPES
 #endif
 
-#define AGL_HELPER_GPA(p, t)    p = (t) AGL_GET_PROC( #p )  // getprocaddress wrapper to have less code
-#define AGL_HELPER_GPAT(p, t) t p = (t) AGL_GET_PROC( #p )  // one time use getprocaddress wrapper to have less code
-
 typedef struct
 {
     s32 Count;
@@ -514,6 +507,7 @@ typedef struct
     s32             Width;
     s32             Height;
     r32             Delta;
+    r32             Step;
     b32             VerticalSync;
     b32             EnableMSAA;
     b32             MultisampleSupported;
@@ -572,23 +566,25 @@ AGL_MAIN
     __ctx.VerticalSync = AGL_OPENGL_VSYNC_ENABLE;
     
     if(aglCreateWindow(AGL_WINDOW_TITLE) && __ctx.Platform.GLContext)
-    {   
-        if(__ctx.VerticalSync) aglToggleVSYNC();
-        if(__ctx.EnableMSAA)   glEnable(GL_MULTISAMPLE); else glDisable(GL_MULTISAMPLE);
-        
+    {                 
         __ctx.GLInfo.Vendor                 = (char *) glGetString(GL_VENDOR);
         __ctx.GLInfo.Renderer               = (char *) glGetString(GL_RENDERER);
         __ctx.GLInfo.Version                = (char *) glGetString(GL_VERSION);
         __ctx.GLInfo.ShadingLanguageVersion = (char *) glGetString(GL_SHADING_LANGUAGE_VERSION);
-
+      
         aglInitProcs();
         AGL_INIT(&__ctx);
+        if(__ctx.Step == 0) __ctx.Step = 0.016f;
+
+        timeBeginPeriod(1);
         while(__ctx.Running)
         {
             aglHandleEvents();
-            __ctx.Delta = aglGetTimeStep(AGL_STEP);
+            __ctx.Delta = aglGetTimeStep(__ctx.Step);
             AGL_LOOP(__ctx.Delta);
         }
+        timeEndPeriod(1);
+        
         AGL_CLEANUP();
         aglDestroyWindow();
     }
@@ -838,8 +834,7 @@ aglGetTimeStep(r32 StepMin)
     r64 NowTime;
     static r64 LastTime = -1;
    
-    if (LastTime == -1)
-        LastTime = timeGetTime() / 1000.0 - StepMin;
+    if (LastTime == -1) LastTime = ( timeGetTime() / 1000.0 ) - StepMin;
 
     for(;;) {
         NowTime = timeGetTime() / 1000.0;
@@ -849,7 +844,7 @@ aglGetTimeStep(r32 StepMin)
             return ElapsedTime;
         }
 #if 1
-        aglSleep(2);
+        aglSleep(1);
 #endif
     }
 }
@@ -1142,6 +1137,10 @@ aglCreateWindow(const char *Title)
 	ShowWindow(__ctx.Platform.HWnd, SW_SHOW);
 	SetForegroundWindow(__ctx.Platform.HWnd);
     SetFocus(__ctx.Platform.HWnd);
+
+    if(__ctx.VerticalSync) aglToggleVSYNC();
+    if(__ctx.EnableMSAA)   glEnable(GL_MULTISAMPLE); else glDisable(GL_MULTISAMPLE);
+    
     return true;
 }
 
